@@ -19,6 +19,7 @@ exports.handler = async (event, context) => {
     const pageNum = parseInt(query.pageNum) || 1;
     const delay = Math.max(parseInt(query.delay) || 1000, 500);
     const isBlockResources = query.blockResources !== 'false';
+    const timeout = Math.max(parseInt(query.timeout) || 30000, 5000);
 
     if (!url) {
         return {
@@ -34,7 +35,7 @@ exports.handler = async (event, context) => {
         logs.push({ message: msg, level });
     };
 
-    log(`Bắt đầu trích xuất Trang ${pageNum}.`);
+    log(`Bắt đầu trích xuất Trang ${pageNum} (Timeout: ${timeout}ms).`);
     
     let browser = null;
     try {
@@ -48,6 +49,8 @@ exports.handler = async (event, context) => {
         });
 
         const page = await browser.newPage();
+        await page.setDefaultNavigationTimeout(timeout);
+        await page.setDefaultTimeout(timeout);
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setViewport({ width: 1366, height: 768 });
         await page.setExtraHTTPHeaders({
@@ -92,9 +95,9 @@ exports.handler = async (event, context) => {
 
         log(`Điều hướng tới URL: ${targetUrl}`);
         try {
-            await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: timeout });
         } catch (gotoError) {
-            log(`Cảnh báo: Thời gian tải trang vượt quá 15s. Đang tiến hành trích xuất dữ liệu hiện có...`, 'warning');
+            log(`Cảnh báo: Thời gian tải trang vượt quá ${timeout}ms. Đang tiến hành trích xuất dữ liệu hiện có...`, 'warning');
         }
 
         // If paginationMode is 'button' and pageNum > 1, click next button N-1 times
