@@ -359,9 +359,25 @@ app.get('/api/stream-scrape', async (req, res) => {
                 return ketQuaTrang;
             }, numPage, page.url());
 
-            // Loại bỏ trùng lặp trong nội bộ trang này
+            // Loại bỏ trùng lặp trong nội bộ trang này, giữ lại giá bán rẻ nhất (giá sale) nếu bị trùng link/tên
             const uniqueMap = new Map();
-            sanPhamTrangNay.forEach(sp => uniqueMap.set(sp.ten + '-' + sp.gia, sp));
+            sanPhamTrangNay.forEach(sp => {
+                const uniqueKey = sp.link || sp.ten;
+                if (!uniqueKey) return;
+                
+                if (uniqueMap.has(uniqueKey)) {
+                    const existingSp = uniqueMap.get(uniqueKey);
+                    const valNew = parseInt(sp.gia.replace(/\D/g, '')) || 0;
+                    const valExisting = parseInt(existingSp.gia.replace(/\D/g, '')) || 0;
+                    
+                    // Nếu giá mới rẻ hơn giá cũ thì cập nhật (để lấy giá sale rẻ nhất)
+                    if (valNew > 0 && (valExisting === 0 || valNew < valExisting)) {
+                        uniqueMap.set(uniqueKey, sp);
+                    }
+                } else {
+                    uniqueMap.set(uniqueKey, sp);
+                }
+            });
             const uniqueProducts = Array.from(uniqueMap.values());
 
             logToClient(`Đã trích xuất ${uniqueProducts.length} sản phẩm độc lập từ Trang ${numPage}.`);
@@ -370,8 +386,8 @@ app.get('/api/stream-scrape', async (req, res) => {
             let soLuongMoiThucTe = 0;
             if (uniqueProducts.length > 0) {
                 uniqueProducts.forEach(sp => {
-                    // Lọc trùng lặp toàn cục trên tất cả các trang
-                    const uniqueKey = sp.ten + '-' + sp.gia;
+                    // Lọc trùng lặp toàn cục trên tất cả các trang dựa trên link hoặc tên sản phẩm
+                    const uniqueKey = sp.link || sp.ten;
                     if (!tatCaTenDaQuetToanCuc.has(uniqueKey)) {
                         tatCaTenDaQuetToanCuc.add(uniqueKey);
                         globalIndex++;
