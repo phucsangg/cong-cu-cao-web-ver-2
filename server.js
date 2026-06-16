@@ -49,10 +49,21 @@ app.get('/api/stream-scrape', async (req, res) => {
     
     let isClientDisconnected = false;
     let tiepTucQuetMultiPage = true;
+    let heartbeatInterval = null;
+
+    // Heartbeat: gửi comment SSE mỗi 15 giây để giữ kết nối sống khi đang cào trang chậm
+    heartbeatInterval = setInterval(() => {
+        if (!res.writableEnded && !isClientDisconnected) {
+            res.write(': heartbeat\n\n');
+        } else {
+            clearInterval(heartbeatInterval);
+        }
+    }, 15000);
 
     req.on('close', async () => {
         isClientDisconnected = true;
         tiepTucQuetMultiPage = false;
+        clearInterval(heartbeatInterval);
         console.log('[INFO] Client ngắt kết nối. Đang dừng tiến trình cào và đóng trình duyệt...');
         if (browser) {
             try {
@@ -975,32 +986,42 @@ app.get('/api/stream-scrape', async (req, res) => {
             }
         }
 
+        // Đóng browser TRƯỚC khi gửi 'done' — tránh finally ghi log vào res đã closed
+        if (browser) {
+            try { await browser.close(); } catch (e) {}
+            browser = null;
+        }
+        clearInterval(heartbeatInterval);
+
         // Gửi kết quả hoàn thành xuất sắc
         logToClient(`=== CHIẾN DỊCH HOÀN THÀNH XUẤT SẮC ===`, 'success');
         logToClient(`Đã vét thành công tổng cộng ${globalIndex} sản phẩm từ ${Math.min(numPage, maxPages)} trang.`);
-        sendSSE(res, 'done', {
-            totalItems: globalIndex,
-            totalPages: Math.min(numPage, maxPages)
-        });
-        res.end();
+        if (!res.writableEnded) {
+            sendSSE(res, 'done', {
+                totalItems: globalIndex,
+                totalPages: Math.min(numPage, maxPages)
+            });
+            res.end();
+        }
 
     } catch (error) {
+        clearInterval(heartbeatInterval);
         if (isClientDisconnected) {
             console.log('[INFO] Đã hủy tiến trình do client ngắt kết nối (Target closed).');
         } else {
             logToClient(`Lỗi nghiêm trọng: ${error.message}`, 'error');
-            sendSSE(res, 'error', { message: error.message });
+            if (!res.writableEnded) {
+                sendSSE(res, 'error', { message: error.message });
+                res.end();
+            }
         }
-        res.end();
     } finally {
+        clearInterval(heartbeatInterval);
         if (browser) {
-            try {
-                logToClient(`Đang đóng trình duyệt Chrome ảo để giải phóng RAM...`);
-                await browser.close();
-                logToClient(`Hệ thống đã dừng an toàn.`);
-            } catch (closeErr) {}
+            try { await browser.close(); } catch (closeErr) {}
         }
     }
+
 });
 
 const PORT = process.env.PORT || 3000;
