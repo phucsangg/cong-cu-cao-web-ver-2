@@ -73,7 +73,7 @@ app.get('/api/stream-scrape', async (req, res) => {
     try {
         browser = await puppeteer.launch({ 
             headless: true, 
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || puppeteer.executablePath(),
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || (typeof puppeteer.executablePath === 'function' ? await puppeteer.executablePath() : undefined),
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox', 
@@ -189,6 +189,49 @@ app.get('/api/stream-scrape', async (req, res) => {
                     'nổi bật', 'cổ điển', 'xem thêm', 'danh mục', 'giới thiệu', 
                     'đăng ký', 'đăng nhập', 'tin công nghệ', 'hệ thống', 'sơ đồ'
                 ];
+
+                function checkIfPrice(text) {
+                    text = text.trim().toLowerCase();
+                    if (!text) return false;
+                    
+                    // Exclude Vietnamese phone numbers (10 digits starting with 0) and toll-free numbers (starting with 1800/1900)
+                    const numericOnly = text.replace(/\D/g, '');
+                    if (/^0\d{9}$/.test(numericOnly) || /^1800\d{4}$/.test(numericOnly) || /^1900\d{4}$/.test(numericOnly)) return false;
+                    
+                    // Extract currency symbol
+                    const hasCurrency = text.includes('đ') || text.includes('₫') || text.includes('$') || text.includes('vnd') || text.includes('vnđ');
+                    
+                    // Remove digits, dots, commas, spaces, currency symbols, percentage, minus
+                    const cleanText = text.replace(/[\d.,\sđ₫$%\-]/g, '').replace(/vnd|vnđ/g, '');
+                    if (cleanText.length > 0) {
+                        return false; 
+                    }
+                    
+                    const hasDigit = /\d/.test(text);
+                    if (!hasDigit) return false;
+                    
+                    if (hasCurrency) {
+                        // Exclude paragraph decimals like "2.1 đ" for VND
+                        if (/[.,]\d$/.test(text.replace(/[^0-9.,]/g, '')) && !text.includes('$')) {
+                            return false;
+                        }
+                        return true;
+                    }
+                    
+                    // If no currency symbol, require standard thousands grouping (e.g. 150.000 or 2.500.000)
+                    const hasThousandSeparator = /^\d{1,3}([.,]\d{3})+$/.test(text);
+                    return hasThousandSeparator;
+                }
+
+                const isExcluded = (id, className) => {
+                    const exclusions = [
+                        'menu', 'sidebar', 'footer', 'header', 'nav', 'aside', 'widget', 
+                        'filter', 'banner', 'slider', 'carousel', 'breadcrumb', 'search',
+                        'cart', 'checkout', 'login', 'register', 'auth', 'social', 'share',
+                        'comment', 'review', 'rating', 'newsletter', 'subscribe', 'pagination'
+                    ];
+                    return exclusions.some(word => id.includes(word) || className.includes(word));
+                };
                 
                 // Lấy tất cả các thẻ trong trang
                 const tatCaThe = Array.from(document.querySelectorAll('*'));
@@ -197,12 +240,7 @@ app.get('/api/stream-scrape', async (req, res) => {
                 const theChuaGia = tatCaThe.filter(el => {
                     if (el.children.length > 0) return false; // Chỉ lấy thẻ lá cuối cùng
                     const text = el.innerText ? el.innerText.trim() : "";
-                    if (!text) return false;
-                    
-                    // Bắt buộc chứa ký hiệu tiền tệ phổ biến và chứa số thực tế
-                    const coKyHieuTien = text.includes('₫') || text.includes('đ') || text.toLowerCase().includes('vnd') || text.includes('đđ') || text.includes('$');
-                    const coSo = /\d/.test(text);
-                    return coKyHieuTien && coSo && text.length < 25;
+                    return checkIfPrice(text);
                 });
 
                 theChuaGia.forEach(priceNode => {
@@ -218,11 +256,7 @@ app.get('/api/stream-scrape', async (req, res) => {
                         const classParent = parent.className ? String(parent.className).toLowerCase() : "";
                         
                         // Chặn các vùng bao quanh không liên quan
-                        if (
-                            idParent.includes('menu') || idParent.includes('sidebar') || idParent.includes('footer') || idParent.includes('header') ||
-                            classParent.includes('menu') || classParent.includes('sidebar') || classParent.includes('footer') || classParent.includes('header') ||
-                            classParent.includes('nav')
-                        ) {
+                        if (isExcluded(idParent, classParent)) {
                             break;
                         }
 
@@ -234,8 +268,8 @@ app.get('/api/stream-scrape', async (req, res) => {
                         for (const titleNode of targetTitles) {
                             const txt = titleNode.innerText ? titleNode.innerText.replace(/\s+/g, ' ').trim() : "";
                             
-                            // Tiêu đề sản phẩm thường có độ dài hợp lý
-                            if (txt && txt.length >= 8 && txt.length < 150 && txt !== rawPrice) {
+                            // Tiêu đề sản phẩm thường có độ dài hợp lý và không được trùng giá
+                            if (txt && txt.length >= 8 && txt.length < 150 && txt !== rawPrice && !checkIfPrice(txt)) {
                                 // Loại trừ rác
                                 const laRac = tuKhoaRac.some(x => txt.toLowerCase().includes(x));
                                 if (!laRac) {
