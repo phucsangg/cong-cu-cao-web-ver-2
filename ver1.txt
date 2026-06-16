@@ -1,0 +1,170 @@
+const express = require('express');
+const puppeteer = require('puppeteer');
+const path = require('path');
+
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Hàm đổi dữ liệu thành dòng CSV lẻ
+function formatCSVRow(item, index) {
+    return [
+        index + 1,
+        `"${item.ten.replace(/"/g, '""')}"`, 
+        `"${item.gia}"`,
+        `"Trang ${item.trang}"`
+    ].join(',') + '\n';
+}
+
+// API chạy thời gian thực (Real-time Stream) chống Timeout
+app.get('/api/stream-scrape', async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).write('Lỗi: Thiếu link đường dẫn');
+
+    // Thiết lập Header để trình duyệt hiểu đây là luồng dữ liệu liên tục
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    console.log(`\n[STREAM BOT ACTIVATED] Kết nối thời gian thực tới: ${url}`);
+
+    let browser;
+    try {
+        browser = await puppeteer.launch({ 
+            headless: true, 
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'] 
+        });
+        
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+        await page.setViewport({ width: 1366, height: 768 });
+
+        let numPage = 1;
+        let tiepTucQuetMultiPage = true;
+        let globalIndex = 0;
+        let lastPageProductsCount = -1;
+
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
+
+        while (tiepTucQuetMultiPage) {
+            // Cuộn chuột tải Lazyload
+            await page.evaluate(async () => {
+                await new Promise((resolve) => {
+                    let totalHeight = 0;
+                    let distance = 400;
+                    let timer = setInterval(() => {
+                        let scrollHeight = document.body.scrollHeight;
+                        window.scrollBy(0, distance);
+                        totalHeight += distance;
+                        if(totalHeight >= scrollHeight - 500){
+                            clearInterval(timer);
+                            resolve();
+                        }
+                    }, 100);
+                });
+            });
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            // Quét dữ liệu Heuristic
+            const sanPhamTrangNay = await page.evaluate((numPage) => {
+                const ketQuaTrang = [];
+                const tuKhoaRac = ['chính sách', 'hướng dẫn', 'tin tức', 'liên hệ', 'bài viết', 'giỏ hàng', 'tài khoản', 'showroom', 'tuyển dụng', 'địa chỉ', 'hotline', 'góp ý', 'bảo hành', 'trả góp', 'thương hiệu', 'nổi bật', 'cổ điển', 'xem thêm', 'danh mục'];
+                
+                const tatCaThe = Array.from(document.querySelectorAll('*'));
+                const theChuaGia = tatCaThe.filter(el => {
+                    const text = el.innerText ? el.innerText.trim() : "";
+                    return (text.includes('₫') || text.includes('đ') || text.toLowerCase().includes('vnd')) && /\d/.test(text) && el.children.length === 0 && text.length < 22;
+                });
+
+                theChuaGia.forEach(priceNode => {
+                    let rawPrice = priceNode.innerText.replace(/\s+/g, ' ').trim();
+                    let parent = priceNode.parentElement;
+                    let titleFound = "";
+
+                    for (let step = 0; step < 3; step++) {
+                        if (parent) {
+                            const idParent = parent.id ? String(parent.id).toLowerCase() : "";
+                            const classParent = parent.className ? String(parent.className).toLowerCase() : "";
+                            if (idParent.includes('menu') || idParent.includes('sidebar') || classParent.includes('menu') || classParent.includes('sidebar')) break;
+
+                            const targetTitle = parent.querySelector('h3, h4, h2, a[class*="title"], [class*="name"], .title, .name');
+                            if (targetTitle) {
+                                titleFound = targetTitle.innerText.replace(/\s+/g, ' ').trim();
+                                if (titleFound.length > 12) break; 
+                            }
+                            parent = parent.parentElement;
+                        }
+                    }
+
+                    if (titleFound && titleFound.length > 12 && titleFound !== rawPrice) {
+                        if (!tuKhoaRac.some(x => titleFound.toLowerCase().includes(x))) {
+                            ketQuaTrang.push({ ten: titleFound, gia: rawPrice, trang: numPage });
+                        }
+                    }
+                });
+                return ketQuaTrang;
+            }, numPage);
+
+            // Loại bỏ trùng lặp nội bộ trang
+            const uniqueMap = new Map();
+            sanPhamTrangNay.forEach(sp => uniqueMap.set(sp.ten, sp));
+            const uniqueProducts = Array.from(uniqueMap.values());
+
+            // Gửi ngay lập tức dữ liệu của trang này về Frontend bằng lệnh res.write()
+            if (uniqueProducts.length > 0 && uniqueProducts.length !== lastPageProductsCount) {
+                uniqueProducts.forEach(sp => {
+                    globalIndex++;
+                    // Gửi gói dữ liệu chuẩn EventStream (bắt buộc bắt đầu bằng "data:")
+                    res.write(`data: ${JSON.stringify({ ...sp, stt: globalIndex })}\n\n`);
+                });
+                lastPageProductsCount = uniqueProducts.length;
+            } else {
+                console.log(`    => Không phát hiện thêm sản phẩm mới ở Trang ${numPage}.`);
+                tiepTucQuetMultiPage = false;
+                break;
+            }
+
+            console.log(`    => Đã bắn dữ liệu Trang ${numPage} về màn hình giao diện thành công.`);
+
+            // Tìm và click nút Next
+            const phatHienNutNext = await page.evaluate(() => {
+                const tatCaLinksANut = Array.from(document.querySelectorAll('a, button, span, li'));
+                const elementNext = tatCaLinksANut.find(el => {
+                    const text = el.innerText ? el.innerText.trim().toLowerCase() : "";
+                    const className = el.className ? String(el.className).toLowerCase() : "";
+                    const relAttr = el.getAttribute('rel') ? el.getAttribute('rel').toLowerCase() : "";
+                    return text === '>' || text === '»' || text === '▶' || text.includes('kế tiếp') || text.includes('trang sau') || text.includes('next') || relAttr === 'next' || className.includes('next');
+                });
+
+                if (elementNext) {
+                    elementNext.scrollIntoView();
+                    elementNext.click();
+                    return true;
+                }
+                return false;
+            });
+
+            if (phatHienNutNext && numPage < 25) {
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                numPage++;
+            } else {
+                tiepTucQuetMultiPage = false;
+            }
+        }
+
+        // Báo hiệu luồng quét kết thúc hoàn toàn
+        res.write(`data: {"done": true}\n\n`);
+        res.end();
+
+    } catch (error) {
+        console.error(`\n [LỖI]: ${error.message}`);
+        res.write(`data: {"error": "${error.message}"}\n\n`);
+        res.end();
+    } finally {
+        if (browser) await browser.close();
+    }
+});
+
+app.listen(3000, () => {
+    console.log('Hệ thống Stream chống Timeout đang chạy tại: http://localhost:3000');
+});

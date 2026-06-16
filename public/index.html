@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Công cụ cào và trích xuất dữ liệu sản phẩm đa trang thời gian thực, chống timeout 100% bằng Server-Sent Events và Puppeteer.">
+    <title>Siêu Bot Vét Cạn Đa Trang - Real-Time Scraper Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #030712;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --glow-green: rgba(16, 185, 129, 0.15);
+            --primary-color: #10b981; /* Emerald Green */
+            --accent-color: #06b6d4;  /* Cyan */
+            --warning-color: #f59e0b; /* Amber */
+            --danger-color: #ef4444;  /* Red */
+            --text-main: #f3f4f6;     /* Slate 100 */
+            --text-muted: #9ca3af;    /* Slate 400 */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.05) 0%, transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+            padding-bottom: 4rem;
+        }
+
+        /* Glassmorphism Styles */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 15px 50px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        .header-section {
+            border-radius: 17px 17px 0 0;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Controls styling */
+        .form-control, .form-select {
+            background-color: rgba(17, 24, 39, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #fff;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: rgba(17, 24, 39, 0.95);
+            color: #fff;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px var(--glow-green);
+        }
+
+        /* Custom Premium Buttons */
+        .btn-premium {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #059669 100%);
+            border: none;
+            color: white;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-premium:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+            background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+        }
+
+        .btn-premium:disabled {
+            background: rgba(156, 163, 175, 0.2);
+            box-shadow: none;
+            transform: none;
+            color: var(--text-muted);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
+            border: none;
+            color: white;
+            font-weight: 700;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-stop:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
+        }
+
+        /* Stats Dashboard styling */
+        .stat-card {
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: rgba(31, 41, 55, 0.4);
+            padding: 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+        }
+
+        .stat-card.emerald::after { background-color: var(--primary-color); }
+        .stat-card.cyan::after { background-color: var(--accent-color); }
+        .stat-card.amber::after { background-color: var(--warning-color); }
+        .stat-card.indigo::after { background-color: #6366f1; }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 2px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* Terminal Logs style */
+        .terminal-window {
+            background: #020617;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            overflow: hidden;
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        .terminal-header {
+            background: #0b0f19;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .terminal-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .terminal-body {
+            height: 220px;
+            overflow-y: auto;
+            padding: 14px 18px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #e2e8f0;
+            scroll-behavior: smooth;
+        }
+
+        /* Log Line Levels styling */
+        .log-line {
+            margin-bottom: 6px;
+            display: block;
+        }
+        .log-time { color: var(--text-muted); margin-right: 8px; font-size: 0.75rem; }
+        .log-info { color: #f1f5f9; }
+        .log-success { color: #34d399; text-shadow: 0 0 4px rgba(52, 211, 153, 0.3); }
+        .log-warning { color: #fbbf24; }
+        .log-error { color: #f87171; font-weight: 600; }
+
+        /* Scraped Data Table styling */
+        .table-responsive-container {
+            max-height: 480px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+        }
+
+        .table-premium {
+            margin-bottom: 0;
+            vertical-align: middle;
+            color: var(--text-main);
+        }
+
+        .table-premium thead {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: #0b0f19;
+        }
+
+        .table-premium th {
+            background-color: #0b0f19;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.8px;
+            padding: 14px 16px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .table-premium td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-weight: 500;
+        }
+
+        .product-title-cell {
+            max-width: 380px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .product-link-btn {
+            color: var(--accent-color);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .product-link-btn:hover {
+            color: #22d3ee;
+            text-decoration: underline;
+        }
+
+        .price-badge {
+            font-size: 0.95rem;
+            color: #34d399;
+            font-weight: 700;
+        }
+
+        /* Image preview styling */
+        .product-thumb {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            border-radius: 6px;
+            background-color: #fff;
+            padding: 2px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .product-thumb:hover {
+            transform: scale(1.4);
+            z-index: 2;
+            position: relative;
+        }
+
+        /* Animation */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .row-animate {
+            animation: fadeInUp 0.4s ease forwards;
+        }
+
+        @keyframes statPulse {
+            0% { box-shadow: 0 0 0 rgba(0,0,0,0); }
+            50% { box-shadow: 0 0 15px var(--primary-color); border-color: var(--primary-color); }
+            100% { box-shadow: 0 0 0 rgba(0,0,0,0); }
+        }
+        
+        .stat-card.active-pulse {
+            animation: statPulse 2s infinite;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020617;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5" style="max-width: 1080px;">
+        <!-- Card Chính -->
+        <div class="card glass-card shadow-lg mb-5 overflow-hidden">
+            <!-- Header -->
+            <div class="header-section text-center py-4 px-3">
+                <h1 class="mb-1 fw-extrabold text-white" style="letter-spacing: -0.5px; font-size: 2.1rem;">SIÊU BOT VÉT CẠN ĐA TRANG</h1>
+                <p class="mb-0 text-muted fs-6">Hệ thống trích xuất sản phẩm thời gian thực qua Server-Sent Events, tối ưu hóa RAM & chống Timeout</p>
+            </div>
+            
+            <div class="card-body p-4">
+                <!-- Cấu hình đầu vào -->
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <label for="urlInput" class="form-label fw-bold text-success" id="lblUrl">Đường dẫn URL Danh mục cần cào:</label>
+                        <input type="url" id="urlInput" class="form-control form-control-lg" 
+                               value="https://bepxanh.com/bep-tu.html" placeholder="https://example.com/danh-muc-san-pham">
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="paginationMode" class="form-label fw-bold text-light">Phương thức chuyển trang:</label>
+                        <select id="paginationMode" class="form-select" onchange="togglePaginationField()">
+                            <option value="button" selected>👉 Click nút chuyển tiếp (Next)</option>
+                            <option value="url">🔗 Điều hướng qua Tham số URL</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="pageParam" class="form-label fw-bold text-light" id="lblPageParam">Tham số URL Trang:</label>
+                        <input type="text" id="pageParam" class="form-control" value="page" disabled placeholder="e.g. page, p">
+                    </div>
+
+                    <div class="col-md-2">
+                        <label for="maxPages" class="form-label fw-bold text-light">Max Trang:</label>
+                        <input type="number" id="maxPages" class="form-control" value="10" min="1" max="50">
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="delayInput" class="form-label fw-bold text-light">Độ trễ nghỉ (ms):</label>
+                        <input type="number" id="delayInput" class="form-control" value="2000" min="500" max="10000" step="500">
+                    </div>
+
+                    <div class="col-12 d-flex align-items-center justify-content-between mt-3 px-1">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input bg-success border-secondary" type="checkbox" id="blockResources" checked>
+                            <label class="form-check-label text-muted fw-semibold" for="blockResources">Chặn tải Ảnh & Tài nguyên rác trên Bot ngầm (Tăng tốc độ 3x)</label>
+                        </div>
+                        <span class="badge bg-secondary p-2">Headless Chrome Enabled</span>
+                    </div>
+                </div>
+
+                <!-- Điều khiển hành động -->
+                <div class="row g-2 mb-4">
+                    <div class="col-lg-8">
+                        <button id="btnStart" onclick="kichHoatHeThongStream()" class="btn btn-premium btn-lg w-100 py-3">
+                            🚀 KHỞI ĐỘNG CHIẾN DỊCH VÉT CẠN REAL-TIME
+                        </button>
+                    </div>
+                    <div class="col-lg-4">
+                        <button id="btnStop" onclick="dungHeThongQuet()" class="btn btn-stop btn-lg w-100 py-3" disabled>
+                            ⏹ DỪNG HOẠT ĐỘNG BOT
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Thống kê Live Stats Dashboard -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card emerald">
+                            <div id="statProducts" class="stat-value text-emerald-glow">0</div>
+                            <div class="stat-label">Đã trích xuất</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card cyan">
+                            <div id="statPages" class="stat-value">0 / 0</div>
+                            <div class="stat-label">Số trang quét</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card amber">
+                            <div id="statSpeed" class="stat-value">0</div>
+                            <div class="stat-label">Tốc độ (s.phẩm/phút)</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card indigo">
+                            <div id="statTime" class="stat-value">00:00</div>
+                            <div class="stat-label">Thời gian chạy</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terminal Console Log thời gian thực -->
+                <div class="mb-4">
+                    <div class="terminal-window">
+                        <div class="terminal-header">
+                            <div>
+                                <span class="terminal-dot bg-danger"></span>
+                                <span class="terminal-dot bg-warning"></span>
+                                <span class="terminal-dot bg-success"></span>
+                                <span class="ms-2 text-muted fw-bold" style="font-size: 0.75rem;">LIVE BOT TERMINAL CONSOLE</span>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2 fw-semibold" onclick="clearConsole()" style="font-size: 0.7rem;">Clear Log</button>
+                        </div>
+                        <div id="terminalBody" class="terminal-body">
+                            <span class="log-line"><span class="log-time">00:00:00</span><span class="log-info">Hệ thống đang chờ lệnh khởi chạy... Nhấn nút Kích hoạt ở trên để bắt đầu.</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng Hiển Thị Kết Quả -->
+                <div id="kqKhongGian" class="d-none">
+                    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center bg-dark p-3 rounded mb-3 border border-secondary gap-2">
+                        <div class="position-relative flex-grow-1 me-sm-3">
+                            <input type="text" id="searchFilter" onkeyup="locDuLieuBang()" class="form-control form-control-sm" placeholder="🔍 Tìm nhanh theo tên sản phẩm đã cào...">
+                        </div>
+                        <div class="d-flex gap-2 justify-content-end flex-wrap">
+                            <button onclick="taiFileCSV()" class="btn btn-sm btn-warning fw-bold px-3">📊 Tải CSV (Thường)</button>
+                            <button onclick="taiFileShopify()" class="btn btn-sm btn-success fw-bold px-3 text-white">🛍️ Tải CSV (Shopify)</button>
+                            <button onclick="taiFileJSON()" class="btn btn-sm btn-info fw-bold px-3 text-white">📄 Tải JSON (Data)</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive-container">
+                        <table class="table table-dark table-striped table-hover table-premium mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th style="width: 70px;" class="text-center">STT</th>
+                                    <th style="width: 80px;" class="text-center">Hình Ảnh</th>
+                                    <th>Tên Sản Phẩm</th>
+                                    <th style="width: 150px;" class="text-center">Giá Bán</th>
+                                    <th style="width: 110px;" class="text-center">Nguồn</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vungDuLieu">
+                                <!-- Chèn sản phẩm động bằng Javascript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Script điều khiển -->
+    <script>
+        let mangDuLieuToanCuc = [];
+        let eventSource = null;
+        let elapsedInterval = null;
+        let startTime = null;
+
+        const fallbackImgSrc = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzY0NzQ4YiI+PHBhdGggZD0iTTIxIDE5VjVjMC0xLjEtLjktMi0yLTJINWMtMS4xIDAtMiAuOS0yIDJ2MTRjMCAxLjEuOSAyIDIgMmgxNGMxLjEgMCAyLS45IDItMnpNOC41IDEzLjVsMi41IDMuMDFMMTQuNSAxMmw0LjUgNkg1bDMuNS00LjV6Ii8+PC9zdmc+';
+
+        function togglePaginationField() {
+            const mode = document.getElementById('paginationMode').value;
+            const field = document.getElementById('pageParam');
+            if (mode === 'url') {
+                field.disabled = false;
+                field.focus();
+            } else {
+                field.disabled = true;
+            }
+        }
+
+        function writeToConsole(message, level = 'info') {
+            const consoleEl = document.getElementById('terminalBody');
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            
+            const logLine = document.createElement('span');
+            logLine.className = 'log-line';
+            
+            let levelClass = 'log-info';
+            if (level === 'success') levelClass = 'log-success';
+            else if (level === 'warning') levelClass = 'log-warning';
+            else if (level === 'error') levelClass = 'log-error';
+
+            logLine.innerHTML = `<span class="log-time">${timeStr}</span><span class="${levelClass}">${message}</span>`;
+            consoleEl.appendChild(logLine);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('terminalBody').innerHTML = '';
+            writeToConsole("Nhật ký đã được xóa.");
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            document.getElementById('statTime').innerText = "00:00";
+            
+            if (elapsedInterval) clearInterval(elapsedInterval);
+            
+            elapsedInterval = setInterval(() => {
+                const totalSeconds = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+                
+                const minStr = minutes.toString().padStart(2, '0');
+                const secStr = seconds.toString().padStart(2, '0');
+                
+                document.getElementById('statTime').innerText = `${minStr}:${secStr}`;
+                
+                // Cập nhật tốc độ cào trung bình
+                if (minutes > 0 || seconds > 10) {
+                    const elapsedMin = totalSeconds / 60;
+                    const speed = Math.round(mangDuLieuToanCuc.length / elapsedMin);
+                    document.getElementById('statSpeed').innerText = speed;
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (elapsedInterval) {
+                clearInterval(elapsedInterval);
+                elapsedInterval = null;
+            }
+        }
+
+        async function kichHoatHeThongStream() {
+            const urlInput = document.getElementById('urlInput').value.trim();
+            if(!urlInput) {
+                alert('Vui lòng điền link URL hợp lệ!');
+                return;
+            }
+
+            const paginationMode = document.getElementById('paginationMode').value;
+            const pageParam = document.getElementById('pageParam').value.trim() || 'page';
+            const maxPages = document.getElementById('maxPages').value || 10;
+            const delay = document.getElementById('delayInput').value || 2000;
+            const blockResources = document.getElementById('blockResources').checked;
+
+            // Khởi tạo lại trạng thái
+            mangDuLieuToanCuc = [];
+            document.getElementById('vungDuLieu').innerHTML = '';
+            document.getElementById('statProducts').innerText = '0';
+            document.getElementById('statPages').innerText = `0 / ${maxPages}`;
+            document.getElementById('statSpeed').innerText = '0';
+            document.getElementById('searchFilter').value = '';
+            
+            document.getElementById('kqKhongGian').classList.remove('d-none');
+            
+            // Thiết lập nút bấm và giao diện
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnStart').innerHTML = '⏳ ĐANG VÉT CẠN... VUI LÒNG ĐỢI';
+            document.getElementById('btnStop').disabled = false;
+            
+            // Bật animation
+            document.querySelectorAll('.stat-card').forEach(el => el.classList.add('active-pulse'));
+
+            // Đóng kết nối cũ
+            if (eventSource) eventSource.close();
+            clearConsole();
+            writeToConsole(`Kích hoạt bot. Đang kết nối luồng dữ liệu thời gian thực tới Backend...`);
+            
+            startTimer();
+
+            // Mở luồng kết nối động EventSource gửi đầy đủ tham số
+            const queryParams = new URLSearchParams({
+                url: urlInput,
+                paginationMode,
+                pageParam,
+                maxPages,
+                delay,
+                blockResources: blockResources ? 'true' : 'false'
+            });
+
+            eventSource = new EventSource(`/api/stream-scrape?${queryParams.toString()}`);
+
+            // Nhận tin nhắn từ luồng SSE
+            eventSource.onmessage = function(event) {
+                let packet;
+                try {
+                    packet = JSON.parse(event.data);
+                } catch(e) {
+                    writeToConsole(`Lỗi phân tích dữ liệu gói tin SSE: ${event.data}`, 'error');
+                    return;
+                }
+
+                if (packet.type === 'log') {
+                    writeToConsole(packet.message, packet.level);
+                } 
+                else if (packet.type === 'product') {
+                    const prod = packet;
+                    mangDuLieuToanCuc.push(prod);
+                    
+                    document.getElementById('statProducts').innerText = mangDuLieuToanCuc.length;
+
+                    // Tạo dòng dữ liệu hiển thị
+                    const row = document.createElement('tr');
+                    row.className = 'row-animate';
+                    
+                    // Render ảnh sản phẩm kèm fallback thông minh
+                    const imageHtml = prod.anh 
+                        ? `<img src="${prod.anh}" class="product-thumb" alt="${prod.ten}" onerror="this.onerror=null; this.src='${fallbackImgSrc}';"/>`
+                        : `<img src="${fallbackImgSrc}" class="product-thumb bg-secondary border-0" />`;
+
+                    // Render tên kèm link nếu có
+                    const nameHtml = prod.link 
+                        ? `<div class="product-title-cell"><a href="${prod.link}" target="_blank" class="product-link-btn fw-semibold">${prod.ten}</a></div>`
+                        : `<div class="product-title-cell text-light fw-semibold">${prod.ten}</div>`;
+
+                    row.innerHTML = `
+                        <td class="text-center text-muted fw-bold">${prod.stt}</td>
+                        <td class="text-center">${imageHtml}</td>
+                        <td>${nameHtml}</td>
+                        <td class="text-center price-badge">${prod.gia}</td>
+                        <td class="text-center"><span class="badge bg-secondary">Trang ${prod.trang}</span></td>
+                    `;
+                    document.getElementById('vungDuLieu').appendChild(row);
+                }
+                else if (packet.type === 'stats') {
+                    document.getElementById('statPages').innerText = `${packet.stats.currentPage} / ${maxPages}`;
+                }
+                else if (packet.type === 'done') {
+                    stopTimer();
+                    writeToConsole(`Quá trình hoàn thành! Tổng cộng trích xuất được ${packet.totalItems} sản phẩm từ ${packet.totalPages} trang.`, 'success');
+                    alert(`Hoàn thành xuất sắc! Đã quét sạch ${packet.totalItems} sản phẩm.`);
+                    resetControlsState();
+                    eventSource.close();
+                }
+                else if (packet.type === 'error') {
+                    stopTimer();
+                    writeToConsole(`Lỗi trong tiến trình: ${packet.message}`, 'error');
+                    alert(`Đã xảy ra lỗi: ${packet.message}`);
+                    resetControlsState();
+                    eventSource.close();
+                }
+            };
+
+            eventSource.onerror = function() {
+                writeToConsole(`Kết nối EventSource bị ngắt đột ngột hoặc xảy ra lỗi mạng.`, 'error');
+                stopTimer();
+                resetControlsState();
+                if(eventSource) eventSource.close();
+            };
+        }
+
+        function dungHeThongQuet() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            stopTimer();
+            writeToConsole(`=== ĐÃ DỪNG HOẠT ĐỘNG BOT THEO LỆNH CỦA NGƯỜI DÙNG ===`, 'warning');
+            resetControlsState();
+            alert(`Đã gửi lệnh dừng bot. Dữ liệu trích xuất hiện tại (${mangDuLieuToanCuc.length} sản phẩm) vẫn có thể tải về.`);
+        }
+
+        function resetControlsState() {
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnStart').innerHTML = '🚀 KHỞI ĐỘNG CHIẾN DỊCH VÉT CẠN REAL-TIME';
+            document.getElementById('btnStop').disabled = true;
+            document.querySelectorAll('.stat-card').forEach(el => el.classList.remove('active-pulse'));
+        }
+
+        function locDuLieuBang() {
+            const query = document.getElementById('searchFilter').value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#vungDuLieu tr');
+            
+            rows.forEach(row => {
+                const titleCell = row.querySelector('.product-title-cell');
+                if (titleCell) {
+                    const text = titleCell.innerText.toLowerCase();
+                    if (text.includes(query)) {
+                        row.classList.remove('d-none');
+                    } else {
+                        row.classList.add('d-none');
+                    }
+                }
+            });
+        }
+
+        function taiFileCSV() {
+            if(mangDuLieuToanCuc.length === 0) return alert("Chưa có dữ liệu sản phẩm để xuất file!");
+            
+            const headers = ['STT', 'Ten San Pham', 'Gia Ban', 'Nguon Trang', 'Lien Ket San Pham', 'Link Anh'];
+            const rows = mangDuLieuToanCuc.map((item, index) => [
+                index + 1, 
+                `"${item.ten.replace(/"/g, '""')}"`, 
+                `"${item.gia}"`, 
+                `"Trang ${item.trang}"`,
+                `"${item.link || ''}"`,
+                `"${item.anh || ''}"`
+            ]);
+            
+            // Thêm ký tự UTF-8 BOM ở đầu chuỗi (\ufeff) để Excel nhận diện chuẩn font tiếng Việt
+            const csvContent = '\ufeff' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.setAttribute("download", "danh_sach_san_pham_vet_can.csv");
+            a.click();
+            writeToConsole(`Đã tải xuống thành công tệp CSV chứa danh sách sản phẩm.`, 'success');
+        }
+
+        function generateSlug(text) {
+            return text.toString().toLowerCase()
+                .replace(/á|à|ả|ạ|ã|ă|ắ|ằ|ẳ|ẵ|ặ|â|ấ|ầ|ẩ|ẫ|ậ/gi, 'a')
+                .replace(/é|è|ẻ|ẽ|ẹ|ê|ế|ề|ể|ễ|ệ/gi, 'e')
+                .replace(/i|í|ì|ỉ|ĩ|ị/gi, 'i')
+                .replace(/ó|ò|ỏ|õ|ọ|ô|ố|ồ|ổ|ỗ|ộ|ơ|ớ|ờ|ở|ỡ|ợ/gi, 'o')
+                .replace(/ú|ù|ủ|ũ|ụ|ư|ứ|ừ|ử|ữ|ự/gi, 'u')
+                .replace(/ý|ỳ|ỷ|ỹ|ỵ/gi, 'y')
+                .replace(/đ/gi, 'd')
+                .replace(/\s+/g, '-') 
+                .replace(/[^\w\-]+/g, '')
+                .replace(/\-\-+/g, '-')
+                .replace(/^-+/, '') 
+                .replace(/-+$/, '');
+        }
+
+        function taiFileShopify() {
+            if(mangDuLieuToanCuc.length === 0) return alert("Chưa có dữ liệu sản phẩm để xuất file Shopify!");
+            
+            // Header chuẩn của Shopify
+            const headers = [
+                'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
+                'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
+                'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
+                'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price', 'Variant Compare At Price',
+                'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode', 'Image Src', 'Image Position',
+                'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description', 'Google Shopping / Google Product Category',
+                'Google Shopping / Gender', 'Google Shopping / Age Group', 'Google Shopping / MPN',
+                'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels', 'Google Shopping / Condition',
+                'Google Shopping / Custom Product', 'Google Shopping / Custom Label 0', 'Google Shopping / Custom Label 1',
+                'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3', 'Google Shopping / Custom Label 4',
+                'Variant Image', 'Variant Weight Unit', 'Variant Tax Code', 'Cost per item', 'Price / International',
+                'Compare At Price / International', 'Status'
+            ];
+
+            const rows = mangDuLieuToanCuc.map((item, index) => {
+                // Làm sạch giá tiền (chỉ lấy số)
+                const priceClean = item.gia ? item.gia.replace(/[^0-9]/g, '') : '';
+                const handle = generateSlug(item.ten);
+                
+                // Tạo một mảng trống chứa các cột tương ứng với Shopify
+                const rowData = new Array(headers.length).fill('""');
+                
+                rowData[0] = `"${handle}"`;                     // Handle
+                rowData[1] = `"${item.ten.replace(/"/g, '""')}"`;// Title
+                rowData[2] = `""`;                              // Body (HTML)
+                rowData[3] = `"Store Auto Import"`;             // Vendor
+                rowData[6] = `"TRUE"`;                          // Published
+                rowData[7] = `"Title"`;                         // Option1 Name
+                rowData[8] = `"Default Title"`;                 // Option1 Value
+                rowData[19] = `"${priceClean}"`;                // Variant Price
+                rowData[24] = `"${item.anh || ''}"`;            // Image Src
+                rowData[49] = `"active"`;                       // Status
+
+                return rowData.join(',');
+            });
+
+            const csvContent = '\ufeff' + [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.setAttribute("download", "shopify_products_import.csv");
+            a.click();
+            writeToConsole(`Đã tải xuống thành công tệp CSV định dạng chuẩn Shopify.`, 'success');
+        }
+
+        function taiFileJSON() {
+            if(mangDuLieuToanCuc.length === 0) return alert("Chưa có dữ liệu sản phẩm để xuất file!");
+            const blob = new Blob([JSON.stringify(mangDuLieuToanCuc, null, 4)], { type: 'application/json' });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.setAttribute("download", "danh_sach_san_pham_vet_can.json");
+            a.click();
+            writeToConsole(`Đã tải xuống thành công tệp dữ liệu JSON.`, 'success');
+        }
+    </script>
+</body>
+</html>
