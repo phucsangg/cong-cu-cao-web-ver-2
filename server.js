@@ -265,16 +265,37 @@ app.get('/api/stream-scrape', async (req, res) => {
                     return clone.innerText ? clone.innerText.trim() : "";
                 }
 
+                function isOriginalPriceEl(el) {
+                    const cn = el.className ? String(el.className).toLowerCase() : "";
+                    const tn = el.tagName ? String(el.tagName).toLowerCase() : "";
+                    if (cn.includes('line') || cn.includes('old') || cn.includes('del') || tn === 'del' || tn === 's') return true;
+                    try {
+                        const cs = window.getComputedStyle(el);
+                        if (cs.textDecorationLine === 'line-through' || cs.textDecoration.includes('line-through')) return true;
+                    } catch(e) {}
+                    return false;
+                }
+
                 // Bộ lọc lấy các nút chứa giá tiền, đảm bảo là phần tử sâu nhất chứa giá trị đó
+                // Dùng child.innerText (thô) để phát hiện con chứa giá — bao gồm cả span giá cũ bị gạch
+                // Nhưng nếu tất cả con chứa giá đều là giá gốc/gạch, vẫn chọn element cha (nó chứa giá KM)
                 const theChuaGia = tatCaThe.filter(el => {
                     const text = getPriceText(el);
                     if (!checkIfPrice(text)) return false;
                     
-                    // Đảm bảo không có thẻ con nào của nó cũng chứa giá tiền (để lấy phần tử nhỏ nhất)
-                    const hasChildWithPrice = Array.from(el.children).some(child => {
-                        return checkIfPrice(getPriceText(child));
-                    });
-                    return !hasChildWithPrice;
+                    const children = Array.from(el.children);
+                    // Kiểm tra con nào có giá hợp lệ trong raw innerText
+                    const childrenWithPrice = children.filter(child => checkIfPrice((child.innerText || "").trim()));
+
+                    if (childrenWithPrice.length === 0) {
+                        // Không có con nào có giá -> đây là leaf price node
+                        return true;
+                    }
+
+                    // Nếu có con chứa giá: chỉ chọn element này nếu tất cả con chứa giá đều là giá gốc/gạch
+                    // (tức là bản thân element này là container chứa: [giá KM text node] + [span giá gạch])
+                    const allChildPricesAreOriginal = childrenWithPrice.every(child => isOriginalPriceEl(child));
+                    return allChildPricesAreOriginal;
                 });
 
                 theChuaGia.forEach(priceNode => {
