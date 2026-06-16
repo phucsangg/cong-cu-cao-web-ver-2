@@ -91,7 +91,11 @@ exports.handler = async (event, context) => {
         }
 
         log(`Điều hướng tới URL: ${targetUrl}`);
-        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        try {
+            await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        } catch (gotoError) {
+            log(`Cảnh báo: Thời gian tải trang vượt quá 15s. Đang tiến hành trích xuất dữ liệu hiện có...`, 'warning');
+        }
 
         // If paginationMode is 'button' and pageNum > 1, click next button N-1 times
         if (paginationMode === 'button' && pageNum > 1) {
