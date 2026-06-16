@@ -1,0 +1,15 @@
+{
+  "name": "fast-scraper-web",
+  "version": "1.0.0",
+  "description": "Trang web cào dữ liệu đồ bếp xuất CSV và JSON",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "express": "^4.18.2",
+    "puppeteer": "^25.1.0"
+  }
+}
