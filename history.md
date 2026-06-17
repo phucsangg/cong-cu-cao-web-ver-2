@@ -12,6 +12,7 @@
   - Tăng ngưỡng số lượng sản phẩm của Cheerio nhanh từ 3 lên 8 để tối ưu tốc độ cào.
   - Tích hợp hàm helper `isHomepage` và `extractCategoryLinksCheerio` để tự động bóc tách các liên kết danh mục từ menu điều hướng khi truy cập trang chủ.
   - Cải tiến bộ bóc tách link danh mục (`extractCategoryLinksCheerio`): mở rộng selectors hỗ trợ các thuộc tính ID (`#nav`, `[id*="nav"]`, `[id*="menu"]`...) để khắc phục lỗi không nhận diện được menu trên các trang như `bep365.vn`. Đồng thời bổ sung thuật toán lọc loại trừ các danh mục con trùng lặp để giảm thiểu số lượng link quét dư thừa, tăng hiệu năng.
+  - Tích hợp hàm lọc danh mục thông minh `matchesCategory` dựa trên danh sách từ khóa sản phẩm cốt lõi (bếp, hút mùi, rửa chén, chậu vòi, tủ lạnh, máy giặt, nồi chảo...) để chỉ cào các danh mục liên quan theo yêu cầu.
 - [netlify.toml](file:///d:/Work/cong-cu-cao-web-ver-2/netlify.toml):
   - Thêm cấu hình `functions = "netlify/functions"` trong khối `[build]` để giải quyết triệt để lỗi 404 API khi deploy.
 - [public/index.html](file:///d:/Work/cong-cu-cao-web-ver-2/public/index.html):

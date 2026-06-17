@@ -14,6 +14,23 @@ function isHomepage(urlStr) {
     }
 }
 
+// Helper to check if a category link matches the user's target product categories
+function matchesCategory(text, path) {
+    const cleanText = (text || '').toLowerCase().trim();
+    const cleanPath = (path || '').toLowerCase().trim();
+    
+    const keywords = [
+        'bếp', 'bep', 'gas', 'ga', 'hút mùi', 'hut mui', 'rửa chén', 'rua chen', 'rửa bát', 'rua bat',
+        'lò nướng', 'lo nuong', 'vi sóng', 'vi song', 'chậu', 'chau', 'vòi', 'voi', 'tủ lạnh', 'tu lanh',
+        'máy giặt', 'may giat', 'máy sấy', 'may say', 'nồi', 'noi', 'chảo', 'chao', 'siêu tốc', 'sieu toc',
+        'máy xay', 'may xay', 'máy ép', 'may ep', 'bàn ủi', 'ban ui', 'bàn là', 'ban la', 'hút bụi', 'hut bui',
+        'quạt', 'quat', 'gia dụng', 'gia dung', 'tủ đông', 'tu dong', 'lò vi sóng', 'lo vi song', 'chén bát',
+        'chen bat', 'chậu rửa', 'chau rua', 'vòi rửa', 'voi rua', 'âm tủ', 'am tu'
+    ];
+
+    return keywords.some(kw => cleanText.includes(kw) || cleanPath.includes(kw.replace(/\s+/g, '-')));
+}
+
 // Helper to extract category links using Cheerio
 function extractCategoryLinksCheerio(html, baseUrl) {
     const $ = cheerio.load(html);
@@ -51,6 +68,10 @@ function extractCategoryLinksCheerio(html, baseUrl) {
 
         const path = parsedUrl.pathname.toLowerCase();
         
+        // Match user requested product categories only
+        const txt = $(el).text() || '';
+        if (!matchesCategory(txt, path)) return;
+
         // Exclude standard non-category pages
         const exclusions = [
             '/tin-tuc', '/lien-he', '/gioi-thieu', '/cart', '/checkout', '/login', 
