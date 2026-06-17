@@ -18,6 +18,8 @@
 - `npx netlify dev --port 8889 --staticServerPort 8890 --functions-port 4001`: Started local netlify dev server on custom ports for testing.
 - `curl.exe "http://localhost:8889/api/scrape?url=https://bepxanh.com/bep-tu.html"`: Verified fast path scraping (Cheerio).
 - `curl.exe "http://localhost:8889/api/scrape?url=https://example.com"`: Verified fallback browser path (Puppeteer) and robustness fixes.
+- `git remote set-url origin https://github.com/tomyrese/crawldata.git`: Changed remote origin to user's repository.
+- `git push -u origin main`: Pushed codebase to user's repository.
 
 ## Bugs Found
 1. **Fallback Path Bypass on Local Dev (Windows)**: `@sparticuz/chromium` was imported and initialized on local Windows machines because the module is installed. `chromium.executablePath()` returned a folder/path that exists, so `fs.promises.access` succeeded, but running `puppeteer.launch` failed because it's not a valid Windows executable. This bypassed the local Chrome/Edge fallback search.

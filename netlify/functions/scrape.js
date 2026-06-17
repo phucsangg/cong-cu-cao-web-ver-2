@@ -1,4 +1,3 @@
-const puppeteer = require('puppeteer-core');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
@@ -285,11 +284,27 @@ function runCheerioScrape(html, url, pageNum, log) {
 exports.handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
 
+    const logs = [];
+    const log = (msg, level = 'info') => logs.push({ message: msg, level });
+
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Content-Type': 'application/json'
     };
+
+    let puppeteer;
+    try {
+        const puppeteerModule = await import('puppeteer-core');
+        puppeteer = puppeteerModule.default || puppeteerModule;
+    } catch (err) {
+        log(`Không thể nạp puppeteer-core: ${err.message}`, 'error');
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: `Lỗi nạp thư viện: ${err.message}`, logs })
+        };
+    }
 
     if (event.httpMethod === 'OPTIONS') {
         return { statusCode: 200, headers, body: '' };
@@ -309,9 +324,6 @@ exports.handler = async (event, context) => {
             body: JSON.stringify({ error: 'Lỗi: Thiếu link đường dẫn' })
         };
     }
-
-    const logs = [];
-    const log = (msg, level = 'info') => logs.push({ message: msg, level });
 
     log(`Bắt đầu trích xuất Trang ${pageNum}...`);
 
