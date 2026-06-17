@@ -24,6 +24,9 @@
   - Replaced collapsible accordion with an always-visible, beautifully styled glass advanced settings panel to improve UX.
   - Added a Jaccard token-based similarity fuzzy matching algorithm (with a 60% threshold, excluding catalog stop words) to match and group products that do not have an extracted SKU/Series.
   - Added a Price Comparison View ('So sánh' tab mode) that clusters products by SKU or Jaccard similarity and highlights the lowest ('Rẻ nhất') and highest ('Cao nhất') prices in real-time.
+  - Implemented real-time tracking and display of global minimum and maximum prices with matching product details in the dashboard metrics.
+  - Added fault-tolerance to the bulk URL list execution: failed pages or category links are skipped after logging the reason, allowing subsequent category URLs to run.
+  - Implemented a post-campaign warning report listing all failed URLs and failure reasons in the terminal panel and final alert box.
 - [test-fetch.mjs](file:///d:/Work/cong-cu-cao-web-ver-2/test-fetch.mjs):
   - Updated SKU/Series extraction testing logic to align with the frontend improvements.
 
@@ -61,6 +64,7 @@
 - `git add public/index.html history.md`: Staged recent changes.
 - `git commit -m "feat: add support for importing list of URLs from TXT file and make advanced configuration panel always visible"`: Committed TXT import and advanced config panel.
 - `git push origin main` / `git push phucsang main`: Synchronized remotes with TXT import features.
+- `Remove-Item test_urls.txt`: Deleted temporary file used during testing.
 
 ## Bugs Found
 1. **Fallback Path Bypass on Local Dev (Windows)**: `@sparticuz/chromium` was imported and initialized on local Windows machines because the module is installed. `chromium.executablePath()` returned a folder/path that exists, so `fs.promises.access` succeeded, but running `puppeteer.launch` failed because it's not a valid Windows executable. This bypassed the local Chrome/Edge fallback search.

@@ -687,6 +687,18 @@
                                 <div id="statTime" class="stat-value text-info">00:00</div>
                             </div>
                         </div>
+                        <div class="col-6">
+                            <div class="stat-card text-center" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center;">
+                                <div class="stat-label">Giá thấp nhất</div>
+                                <div id="statMinPrice" class="stat-value text-success" style="font-size: 0.82rem; line-height: 1.4; font-weight: 700;">-</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-card text-center" style="min-height: 80px; display: flex; flex-direction: column; justify-content: center;">
+                                <div class="stat-label">Giá cao nhất</div>
+                                <div id="statMaxPrice" class="stat-value text-danger" style="font-size: 0.82rem; line-height: 1.4; font-weight: 700;">-</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -816,6 +828,11 @@
         let globalIndex = 0;
         const seenKeys = new Set();
         let netlifyScrapingActive = false;
+        
+        let globalMinPrice = Infinity;
+        let globalMinProduct = null;
+        let globalMaxPrice = -Infinity;
+        let globalMaxProduct = null;
 
         function switchUrlMode(mode) {
             activeUrlMode = mode;
@@ -1334,6 +1351,12 @@
             mangDuLieuToanCuc = [];
             globalIndex = 0;
             seenKeys.clear();
+            globalMinPrice = Infinity;
+            globalMinProduct = null;
+            globalMaxPrice = -Infinity;
+            globalMaxProduct = null;
+            document.getElementById('statMinPrice').innerText = '-';
+            document.getElementById('statMaxPrice').innerText = '-';
 
             document.getElementById('vungDuLieu').innerHTML = '';
             document.getElementById('vungLuoi').innerHTML = '';
@@ -1362,28 +1385,55 @@
             writeToConsole(`Bắt đầu chạy chiến dịch cào dữ liệu cho ${urlsToScrape.length} danh mục...`);
             netlifyScrapingActive = true;
             
+            const failedUrls = [];
+            
             for (let i = 0; i < urlsToScrape.length; i++) {
                 if (!netlifyScrapingActive) break;
                 const currentUrl = urlsToScrape[i];
                 writeToConsole(`👉 Đang quét danh mục (${i + 1}/${urlsToScrape.length}): ${currentUrl}`, 'info');
-                await runNetlifyScraping({ 
-                    urlInput: currentUrl, 
-                    paginationMode, 
-                    pageParam, 
-                    maxPages, 
-                    delay, 
-                    timeout, 
-                    blockResources,
-                    categoryIndex: i,
-                    totalCategories: urlsToScrape.length
-                });
+                try {
+                    const result = await runNetlifyScraping({ 
+                        urlInput: currentUrl, 
+                        paginationMode, 
+                        pageParam, 
+                        maxPages, 
+                        delay, 
+                        timeout, 
+                        blockResources,
+                        categoryIndex: i,
+                        totalCategories: urlsToScrape.length
+                    });
+                    if (result.hasError || result.productCount === 0) {
+                        const reason = result.hasError ? result.errorReason : 'Không lấy được sản phẩm nào (có thể do sai cấu trúc hoặc trang trống)';
+                        failedUrls.push({ url: currentUrl, reason });
+                    }
+                } catch (err) {
+                    failedUrls.push({ url: currentUrl, reason: err.message || 'Lỗi không xác định' });
+                }
             }
 
             netlifyScrapingActive = false;
             scrapingCompleted = true;
             stopTimer();
+            
+            if (failedUrls.length > 0) {
+                writeToConsole(`==================================================`, 'error');
+                writeToConsole(`⚠️ CẢNH BÁO: Phát hiện ${failedUrls.length} link bị lỗi không lấy được sản phẩm:`, 'error');
+                failedUrls.forEach((f, idx) => {
+                    writeToConsole(`[${idx + 1}] ${f.url} (Lý do: ${f.reason})`, 'error');
+                });
+                writeToConsole(`==================================================`, 'error');
+            }
+            
             writeToConsole(`=== HOÀN THÀNH TOÀN BỘ CHIẾN DỊCH! Tổng cộng ${globalIndex} sản phẩm. ===`, 'success');
-            if (globalIndex > 0) alert(`Hoàn thành toàn bộ! Đã thu thập tổng cộng ${globalIndex} sản phẩm.`);
+            
+            if (failedUrls.length > 0) {
+                alert(`Hoàn thành chiến dịch cào dữ liệu!\nTổng cộng thu được: ${globalIndex} sản phẩm.\n\n⚠️ Có ${failedUrls.length} link bị lỗi không lấy được sản phẩm. Xem chi tiết lỗi ở phần Nhật ký cào dữ liệu phía dưới.`);
+            } else if (globalIndex > 0) {
+                alert(`Hoàn thành toàn bộ! Đã thu thập tổng cộng ${globalIndex} sản phẩm.`);
+            } else {
+                alert(`Hoàn thành! Không tìm thấy sản phẩm nào.`);
+            }
             resetControlsState();
         }
 
@@ -1397,6 +1447,27 @@
 
             mangDuLieuToanCuc.push(prod);
             document.getElementById('statProducts').innerText = mangDuLieuToanCuc.length;
+
+            // Cập nhật giá thấp nhất và giá cao nhất toàn cục
+            const numericPrice = parseInt(prod.gia.replace(/\D/g, '')) || 0;
+            if (numericPrice > 0) {
+                if (numericPrice < globalMinPrice) {
+                    globalMinPrice = numericPrice;
+                    globalMinProduct = prod;
+                    document.getElementById('statMinPrice').innerHTML = `
+                        <div class="text-success" style="font-weight: 700;">${prod.gia}</div>
+                        <div class="text-truncate" style="font-size: 0.65rem; color: var(--text-light); max-width: 100%; margin-top: 2px;" title="${prod.tenSạch}">${prod.tenSạch}</div>
+                    `;
+                }
+                if (numericPrice > globalMaxPrice) {
+                    globalMaxPrice = numericPrice;
+                    globalMaxProduct = prod;
+                    document.getElementById('statMaxPrice').innerHTML = `
+                        <div class="text-danger" style="font-weight: 700;">${prod.gia}</div>
+                        <div class="text-truncate" style="font-size: 0.65rem; color: var(--text-light); max-width: 100%; margin-top: 2px;" title="${prod.tenSạch}">${prod.tenSạch}</div>
+                    `;
+                }
+            }
 
             document.getElementById('emptyState').classList.add('d-none');
             if (activeViewMode === 'grid') {
@@ -1473,6 +1544,10 @@
 
         // ── Netlify REST polling: gọi /api/scrape cho từng trang tuần tự ──
         async function runNetlifyScraping({ urlInput, paginationMode, pageParam, maxPages, delay, timeout, blockResources, categoryIndex, totalCategories }) {
+            let categoryError = false;
+            let errorReason = '';
+            let totalProductsFromUrl = 0;
+
             for (let p = 1; p <= maxPages; p++) {
                 if (!netlifyScrapingActive) {
                     writeToConsole(`Đã dừng theo lệnh người dùng.`, 'warning');
@@ -1493,7 +1568,10 @@
                     
                     if (!resp.ok) {
                         const errBody = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-                        writeToConsole(`Lỗi trang ${p}: ${errBody.error || resp.statusText}`, 'error');
+                        const errMsg = errBody.error || resp.statusText || `HTTP ${resp.status}`;
+                        writeToConsole(`Lỗi trang ${p}: ${errMsg}`, 'error');
+                        categoryError = true;
+                        errorReason = errMsg;
                         break;
                     }
 
@@ -1506,6 +1584,8 @@
 
                     if (data.error) {
                         writeToConsole(`Lỗi nghiêm trọng: ${data.error}`, 'error');
+                        categoryError = true;
+                        errorReason = data.error;
                         break;
                     }
 
@@ -1520,6 +1600,7 @@
                         addProduct({ ...sp, stt: globalIndex });
                     });
 
+                    totalProductsFromUrl += newCount;
                     writeToConsole(`Trang ${p}: trích xuất ${products.length} sản phẩm, ${newCount} mới (trùng: ${products.length - newCount}).`, 'success');
 
                     // Nếu không cào thêm được sản phẩm mới nào ở trang này -> dừng cào sớm
@@ -1530,6 +1611,8 @@
 
                 } catch (fetchErr) {
                     writeToConsole(`Lỗi kết nối trang ${p}: ${fetchErr.message}`, 'error');
+                    categoryError = true;
+                    errorReason = fetchErr.message;
                     break;
                 }
 
@@ -1539,6 +1622,7 @@
                     await new Promise(r => setTimeout(r, delay));
                 }
             }
+            return { hasError: categoryError, productCount: totalProductsFromUrl, errorReason };
         }
 
 
