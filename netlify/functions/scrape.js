@@ -56,6 +56,40 @@ function isOriginalPriceEl($, el) {
     return false;
 }
 
+// Helper to find DOM distance between two elements in Cheerio
+function getCheerioDistance(nodeA, nodeB) {
+    const pathA = [];
+    let currA = nodeA;
+    while (currA) {
+        pathA.push(currA);
+        currA = currA.parent;
+    }
+
+    const pathB = [];
+    let currB = nodeB;
+    while (currB) {
+        pathB.push(currB);
+        currB = currB.parent;
+    }
+
+    let lca = null;
+    let indexA = -1;
+    let indexB = -1;
+
+    for (let i = 0; i < pathA.length; i++) {
+        const idx = pathB.indexOf(pathA[i]);
+        if (idx !== -1) {
+            lca = pathA[i];
+            indexA = i;
+            indexB = idx;
+            break;
+        }
+    }
+
+    if (lca === null) return Infinity;
+    return indexA + indexB;
+}
+
 // Cheerio-based DOM heuristic parser
 function runCheerioScrape(html, url, pageNum, log) {
     const $ = cheerio.load(html);
@@ -94,24 +128,30 @@ function runCheerioScrape(html, url, pageNum, log) {
             if (isExcluded(idP.toLowerCase(), cnP.toLowerCase())) break;
             
             const targetTitles = parent.find('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"],.title,.name,a').toArray();
-            let titleText = '', titleHref = '';
-            
+            let candidates = [];
             for (const titleNode of targetTitles) {
                 const txt = $(titleNode).text() ? $(titleNode).text().replace(/\s+/g, ' ').trim() : '';
                 if (txt && txt.length >= 8 && txt.length < 150 && !checkIfPrice(txt)) {
                     const isRac = tuKhoaRac.some(x => txt.toLowerCase().includes(x));
                     if (!isRac) {
-                        titleText = txt;
-                        let nl = $(titleNode);
-                        for (let d = 0; d < 3; d++) {
-                            if (nl && nl.length > 0 && nl[0].tagName.toLowerCase() === 'a') {
-                                titleHref = nl.attr('href');
-                                break;
-                            }
-                            if (nl) nl = nl.parent();
-                        }
+                        const dist = getCheerioDistance(el, titleNode);
+                        candidates.push({ node: titleNode, text: txt, dist });
+                    }
+                }
+            }
+            
+            let titleText = '', titleHref = '';
+            if (candidates.length > 0) {
+                candidates.sort((a, b) => a.dist - b.dist);
+                const best = candidates[0];
+                titleText = best.text;
+                let nl = $(best.node);
+                for (let d = 0; d < 3; d++) {
+                    if (nl && nl.length > 0 && nl[0].tagName.toLowerCase() === 'a') {
+                        titleHref = nl.attr('href');
                         break;
                     }
+                    if (nl) nl = nl.parent();
                 }
             }
             
@@ -127,14 +167,21 @@ function runCheerioScrape(html, url, pageNum, log) {
                 }
             }
             
-            if (!titleHref) {
-                for (const link of parent.find('a').toArray()) {
+            if (titleText && !titleHref) {
+                let links = parent.find('a').toArray();
+                let bestLink = null;
+                let minLinkDist = Infinity;
+                for (const link of links) {
                     const href = $(link).attr('href');
                     if (href && href.length > 2 && !href.startsWith('#') && !href.startsWith('javascript:')) {
-                        titleHref = href;
-                        break;
+                        const dist = getCheerioDistance(el, link);
+                        if (dist < minLinkDist) {
+                            minLinkDist = dist;
+                            bestLink = href;
+                        }
                     }
                 }
+                titleHref = bestLink || '';
             }
             
             if (titleText) {
@@ -193,24 +240,30 @@ function runCheerioScrape(html, url, pageNum, log) {
             if (isExcluded(idP.toLowerCase(), cnP.toLowerCase())) break;
             
             const targetTitles = parent.find('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"],.title,.name,a').toArray();
-            let titleText = '', titleHref = '';
-            
+            let candidates = [];
             for (const titleNode of targetTitles) {
                 const txt = $(titleNode).text() ? $(titleNode).text().replace(/\s+/g, ' ').trim() : '';
                 if (txt && txt.length >= 8 && txt.length < 150 && txt !== rawPrice && !checkIfPrice(txt)) {
                     const isRac = tuKhoaRac.some(x => txt.toLowerCase().includes(x));
                     if (!isRac) {
-                        titleText = txt;
-                        let nl = $(titleNode);
-                        for (let d = 0; d < 3; d++) {
-                            if (nl && nl.length > 0 && nl[0].tagName.toLowerCase() === 'a') {
-                                titleHref = nl.attr('href');
-                                break;
-                            }
-                            if (nl) nl = nl.parent();
-                        }
+                        const dist = getCheerioDistance(priceNode, titleNode);
+                        candidates.push({ node: titleNode, text: txt, dist });
+                    }
+                }
+            }
+            
+            let titleText = '', titleHref = '';
+            if (candidates.length > 0) {
+                candidates.sort((a, b) => a.dist - b.dist);
+                const best = candidates[0];
+                titleText = best.text;
+                let nl = $(best.node);
+                for (let d = 0; d < 3; d++) {
+                    if (nl && nl.length > 0 && nl[0].tagName.toLowerCase() === 'a') {
+                        titleHref = nl.attr('href');
                         break;
                     }
+                    if (nl) nl = nl.parent();
                 }
             }
             
@@ -226,14 +279,21 @@ function runCheerioScrape(html, url, pageNum, log) {
                 }
             }
             
-            if (!titleHref) {
-                for (const link of parent.find('a').toArray()) {
+            if (titleText && !titleHref) {
+                let links = parent.find('a').toArray();
+                let bestLink = null;
+                let minLinkDist = Infinity;
+                for (const link of links) {
                     const href = $(link).attr('href');
                     if (href && href.length > 2 && !href.startsWith('#') && !href.startsWith('javascript:')) {
-                        titleHref = href;
-                        break;
+                        const dist = getCheerioDistance(priceNode, link);
+                        if (dist < minLinkDist) {
+                            minLinkDist = dist;
+                            bestLink = href;
+                        }
                     }
                 }
+                titleHref = bestLink || '';
             }
             
             if (titleText) {
@@ -593,6 +653,35 @@ exports.handler = async (event, context) => {
                     return false;
                 }
 
+                function getDOMDistance(nodeA, nodeB) {
+                    const pathA = [];
+                    let currA = nodeA;
+                    while (currA) {
+                        pathA.push(currA);
+                        currA = currA.parentElement;
+                    }
+                    const pathB = [];
+                    let currB = nodeB;
+                    while (currB) {
+                        pathB.push(currB);
+                        currB = currB.parentElement;
+                    }
+                    let lca = null;
+                    let indexA = -1;
+                    let indexB = -1;
+                    for (let i = 0; i < pathA.length; i++) {
+                        const idx = pathB.indexOf(pathA[i]);
+                        if (idx !== -1) {
+                            lca = pathA[i];
+                            indexA = i;
+                            indexB = idx;
+                            break;
+                        }
+                    }
+                    if (lca === null) return Infinity;
+                    return indexA + indexB;
+                }
+
                 const allElements = Array.from(document.querySelectorAll('*'));
                 const priceNodes = allElements.filter(el => {
                     const text = getPriceText(el);
@@ -623,21 +712,27 @@ exports.handler = async (event, context) => {
                         if (isExcluded(idP, cnP)) break;
 
                         const targetTitles = Array.from(parent.querySelectorAll('h1,h2,h3,h4,h5,h6,[class*="title"],[class*="name"],.title,.name,a'));
-                        let titleText = '', titleHref = '';
-
+                        let candidates = [];
                         for (const titleNode of targetTitles) {
                             const txt = titleNode.innerText ? titleNode.innerText.replace(/\s+/g, ' ').trim() : '';
                             if (txt && txt.length >= 8 && txt.length < 150 && txt !== rawPrice && !checkIfPrice(txt)) {
                                 const isRac = tuKhoaRac.some(x => txt.toLowerCase().includes(x));
                                 if (!isRac) {
-                                    titleText = txt;
-                                    let nl = titleNode;
-                                    for (let i = 0; i < 3; i++) {
-                                        if (nl && nl.tagName === 'A') { titleHref = nl.getAttribute('href'); break; }
-                                        if (nl) nl = nl.parentElement;
-                                    }
-                                    break;
+                                    const dist = getDOMDistance(priceNode, titleNode);
+                                    candidates.push({ node: titleNode, text: txt, dist });
                                 }
+                            }
+                        }
+
+                        let titleText = '', titleHref = '';
+                        if (candidates.length > 0) {
+                            candidates.sort((a, b) => a.dist - b.dist);
+                            const best = candidates[0];
+                            titleText = best.text;
+                            let nl = best.node;
+                            for (let i = 0; i < 3; i++) {
+                                if (nl && nl.tagName === 'A') { titleHref = nl.getAttribute('href'); break; }
+                                if (nl) nl = nl.parentElement;
                             }
                         }
 
@@ -650,13 +745,21 @@ exports.handler = async (event, context) => {
                             if (src && !src.startsWith('data:image')) { imgSrc = src; break; }
                         }
 
-                        if (!titleHref) {
-                            for (const link of Array.from(parent.querySelectorAll('a'))) {
+                        if (titleText && !titleHref) {
+                            let links = Array.from(parent.querySelectorAll('a'));
+                            let bestLink = null;
+                            let minLinkDist = Infinity;
+                            for (const link of links) {
                                 const href = link.getAttribute('href');
                                 if (href && href.length > 2 && !href.startsWith('#') && !href.startsWith('javascript:')) {
-                                    titleHref = href; break;
+                                    const dist = getDOMDistance(priceNode, link);
+                                    if (dist < minLinkDist) {
+                                        minLinkDist = dist;
+                                        bestLink = href;
+                                    }
                                 }
                             }
+                            titleHref = bestLink || '';
                         }
 
                         if (titleText) {

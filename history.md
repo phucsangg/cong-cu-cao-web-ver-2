@@ -9,6 +9,7 @@
   - Added try-catch blocks to request interception functions to prevent requests from hanging.
   - Wrapped `page.evaluate` in a try-catch block to fall back to static HTML scraping via Cheerio if the browser's execution context is destroyed or page is navigating.
   - Replaced the top-level CommonJS `require('puppeteer-core')` with an asynchronous dynamic `import('puppeteer-core')` inside the handler function to avoid `ERR_REQUIRE_ESM` when running on AWS Lambda.
+  - Implemented DOM tree-distance proximity matching (using custom `getCheerioDistance` and `getDOMDistance` helpers) in both Cheerio and Puppeteer paths to associate each price node with its mathematically closest title/link. This resolves cross-talk and duplication issues when crawing pages containing multiple product sections/grids.
 - [netlify.toml](file:///d:/Work/cong-cu-cao-web-ver-2/netlify.toml):
   - Added `functions = "netlify/functions"` under `[build]` to ensure the Netlify builder and CLI locate and deploy the serverless functions folder, resolving 404 errors on `/api/*` endpoints.
 - [public/index.html](file:///d:/Work/cong-cu-cao-web-ver-2/public/index.html):
@@ -34,6 +35,9 @@
 - `git config --local user.email "phuquynguyen458@gmail.com"`: Configured local Git email.
 - `git config --local user.name "Wuys"`: Configured local Git name.
 - `git push origin main`: Pushed the merged commits to the origin remote.
+- `node -c netlify/functions/scrape.js`: Syntax-checked scrape.js.
+- `git commit -am "fix: implement DOM distance-based proximity matching to resolve multi-section product scraping collisions"`: Committed code changes.
+- `git push origin main`: Pushed updates to origin remote.
 
 ## Bugs Found
 1. **Fallback Path Bypass on Local Dev (Windows)**: `@sparticuz/chromium` was imported and initialized on local Windows machines because the module is installed. `chromium.executablePath()` returned a folder/path that exists, so `fs.promises.access` succeeded, but running `puppeteer.launch` failed because it's not a valid Windows executable. This bypassed the local Chrome/Edge fallback search.
@@ -42,6 +46,7 @@
 4. **Node Version Engine Mismatch on Serverless**: `@sparticuz/chromium` v149.0.0 requires Node.js `>= 22.17.0` or `>= 24.0.0`. If Netlify environment uses default Node (e.g. 18 or 20), it would fail to compile or execute.
 5. **Missing Functions Directory Config (404 Error)**: The `functions` property was missing in the `[build]` block of `netlify.toml`. This caused Netlify CLI / builder to skip deploying the serverless functions directory, resulting in HTTP 404 when querying `/api/*`.
 6. **ERR_REQUIRE_ESM on AWS Lambda for puppeteer-core**: `puppeteer-core` version 25.1.0 is a pure ES Module. Calling `require('puppeteer-core')` at the top level of a CommonJS file (`scrape.js`) throws `ERR_REQUIRE_ESM` when executed in the production AWS Lambda environment, crashing the serverless endpoint and returning a 502 Bad Gateway.
+7. **Cross-talk & Duplicate Filtering in Multi-Section Pages**: In pages containing multiple product sections or grids, crawing got stuck repeatedly crawing only 1 section (getting duplicate entries of the first section's items). This happened because the scraper traversed up to 5 levels to find product titles and links, but when it reached a higher-level container (such as a row, swiper wrapper, or grid) containing multiple products, it called `querySelectorAll` or `.find()` globally on it, returning the first product's title for *all* products in that container. The de-duplication stage then discarded all other products as duplicates.
 
 ## Fixes Applied
 1. Prevented `@sparticuz/chromium` from loading when not on AWS Lambda or when `NETLIFY_DEV` is true.
@@ -50,6 +55,7 @@
 4. Added `.node-version` file to lock Node.js version on Netlify to `22.17.0`.
 5. Explicitly defined `functions = "netlify/functions"` under `[build]` in `netlify.toml`.
 6. Loaded `puppeteer-core` dynamically inside the handler via `await import('puppeteer-core')` to support ES module loading in a CommonJS function.
+7. **DOM Distance Proximity Matching**: Replaced the first-match logic in parent traversal with tree-distance calculation (`getCheerioDistance` in Cheerio, `getDOMDistance` in Puppeteer). Now, the scraper evaluates all candidate titles/links under the parent and pairs each price node with its mathematically closest title/link in the DOM tree.
 
 ## Remaining Issues
 - None.
