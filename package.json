@@ -4,11 +4,15 @@
   "description": "Trang web cào dữ liệu đồ bếp xuất CSV và JSON",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "compare:once": "node scripts/compare-once.mjs",
+    "scrape:site": "node scripts/scrape-site.mjs",
+    "check": "node --check lib/scraper-core.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",
     "cheerio": "^1.0.0-rc.12",
-    "puppeteer-core": "^25.1.0"
+    "puppeteer-core": "^25.1.0",
+    "xlsx": "^0.18.5"
   }
 }
