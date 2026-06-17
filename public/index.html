@@ -761,11 +761,11 @@
                 codes.push(match[0]);
             }
             
-            // Pattern 5: General alphanumeric model codes (e.g. HC-I752B, MH-04I, MH732IN, SV-MR90, PPI82566VN)
-            const generalReg = /\b(?:[A-Z]+(?:-[A-Z]+)?-?\d+\w*|\d+-?[A-Z]+\w*)\b/gi;
+            // Pattern 5: General alphanumeric model codes (allowing space before digits, requiring uppercase prefix)
+            const generalReg = /\b(?:[A-Z]{2,}(?:-[A-Z]+)?\s*-?\s*\d+\w*|\d+-?[A-Z]+\w*)\b/g;
             while ((match = generalReg.exec(fullName)) !== null) {
                 const val = match[0];
-                const hasLetter = /[A-Z]/i.test(val);
+                const hasLetter = /[A-Z]/.test(val);
                 const hasDigit = /\d/.test(val);
                 const isUnit = /^\d+(?:W|vùng|trang|ms|s|h|kg)$/i.test(val);
                 if (hasLetter && hasDigit && !isUnit) {
@@ -791,12 +791,13 @@
             let baseSkus = [];
             let seriesSuffixes = [];
             
-            const suffixRegex = /(?:[- ]+|(?<=\d))(EG\/KPLUS|EG|KPLUS|PLUS|Iplus|EVN|VN|IN)$/i;
+            const suffixRegex = /(EG\/KPLUS|EG|KPLUS|PLUS|Iplus|EVN|VN|IN)$/i;
             uniqueCodes.forEach(code => {
                 const matchSuffix = code.match(suffixRegex);
                 if (matchSuffix) {
                     const series = matchSuffix[1];
-                    const baseSku = code.substring(0, matchSuffix.index).trim();
+                    const rawBase = code.substring(0, code.length - series.length);
+                    const baseSku = rawBase.replace(/[- ]+$/, '').trim();
                     baseSkus.push(baseSku);
                     seriesSuffixes.push(series);
                 } else {
