@@ -116,7 +116,10 @@ function runCheerioScrape(html, url, pageNum, log) {
         'giỏ hàng', 'tài khoản', 'showroom', 'tuyển dụng', 'địa chỉ',
         'hotline', 'góp ý', 'bảo hành', 'trả góp', 'thương hiệu',
         'nổi bật', 'cổ điển', 'xem thêm', 'danh mục', 'giới thiệu',
-        'đăng ký', 'đăng nhập', 'tin công nghệ', 'hệ thống', 'sơ đồ'
+        'đăng ký', 'đăng nhập', 'tin công nghệ', 'hệ thống', 'sơ đồ',
+        'khuyến mãi', 'khuyen mai', 'ưu đãi', 'uu dai', 'nhập mã', 'nhap ma',
+        'mã giảm giá', 'ma giam gia', 'quà tặng', 'qua tang', 'thông số', 'thong so',
+        'kỹ thuật', 'ky thuat', 'mô tả', 'mo ta', 'chi tiết', 'chi tiet', 'đặc điểm', 'dac diem'
     ];
 
     // 1. Process script-based prices (e.g. bepxanh.com productSaleSetup)
@@ -608,7 +611,10 @@ exports.handler = async (event, context) => {
                     'giỏ hàng', 'tài khoản', 'showroom', 'tuyển dụng', 'địa chỉ',
                     'hotline', 'góp ý', 'bảo hành', 'trả góp', 'thương hiệu',
                     'nổi bật', 'cổ điển', 'xem thêm', 'danh mục', 'giới thiệu',
-                    'đăng ký', 'đăng nhập', 'tin công nghệ', 'hệ thống', 'sơ đồ'
+                    'đăng ký', 'đăng nhập', 'tin công nghệ', 'hệ thống', 'sơ đồ',
+                    'khuyến mãi', 'khuyen mai', 'ưu đãi', 'uu dai', 'nhập mã', 'nhap ma',
+                    'mã giảm giá', 'ma giam gia', 'quà tặng', 'qua tang', 'thông số', 'thong so',
+                    'kỹ thuật', 'ky thuat', 'mô tả', 'mo ta', 'chi tiết', 'chi tiet', 'đặc điểm', 'dac diem'
                 ];
 
                 function checkIfPrice(text) {

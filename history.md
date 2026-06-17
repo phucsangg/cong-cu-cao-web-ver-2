@@ -107,25 +107,35 @@
   - Added space normalization in `extractSku` to merge spaces between numeric model prefixes and trailing letter suffixes safely (e.g. `CZ 52 IH` -> `CZ 52IH`).
   - Updated `getPackSignature` to detect additional Vietnamese and English gift/bundle keywords (`tặng`, `tang`, `quà`, `qua`, `gift`, `kèm`, `kem`, `+`) to correctly separate bundled combos from bare items.
   - Added robust string normalization (removing spaces, hyphens, and underscores) in `groupAndCompareProducts` when constructing `skuKey` comparison clusters.
+  - Updated `groupAndCompareProducts` to parse domains from links, select only the cheapest product option per domain, and restrict comparisons exclusively to clusters that exist on at least 2 different websites.
 - [test-fetch.mjs](file:///d:/Work/cong-cu-cao-web-ver-2/test-fetch.mjs):
   - Synced standalone `extractSku` implementation with the latest frontend version.
+- [netlify/functions/scrape.js](file:///d:/Work/cong-cu-cao-web-ver-2/netlify/functions/scrape.js):
+  - Added generic promotional and section heading keywords (`khuyến mãi`, `ưu đãi`, `nhập mã`, `mã giảm giá`, `quà tặng`, `thông số`, `kỹ thuật`, `mô tả`, `chi tiết`, `đặc điểm` and their unaccented equivalents) to `tuKhoaRac` arrays in both Cheerio and Puppeteer selectors.
 
 ## Deleted Files
 - None.
 
 ## Commands Executed
 - `node test-fetch.mjs`: Verified SKU/Series extraction results on standard and edge case kitchen appliance titles.
+- `node -c netlify/functions/scrape.js`: Syntax checked the modified serverless scrape script.
+- `node -e "..."`: Simulated cross-site domain grouping and price de-duplication logic.
 
 ## Bugs Found
 1. **Model Number Space Inconsistencies**: Spacing variations like `CZ 52 IH` vs `CZ 52IH` or `CZ 52 I` vs `CZ 52I` prevented SKU comparison matches due to exact string key comparison.
-2. **Missing Gift/Bundle Detection**: Titles featuring gifts/bundles (`tặng nồi`, `kèm quà`, `+`) were incorrectly matches as single items because combo detection was restricted only to `combo`, `set`, and `bộ quà tặng`.
+2. **Missing Gift/Bundle Detection**: Titles featuring gifts/bundles (`tặng nồi`, `kèm quà`, `+`) were incorrectly matched as single items because combo detection was restricted only to `combo`, `set`, and `bộ quà tặng`.
 3. **Unicode Word Boundary Interruptions**: Suffixes starting with uppercase letters followed by Unicode characters (e.g., `16 Món`) were sometimes incorrectly matched due to JavaScript's ASCII-only `\b` boundaries matching before Unicode characters (e.g. `M` in `Món`).
+4. **Promotional Block Proximity Hijacking**: Elements containing generic promotion titles (like `KHUYẾN MÃI - ƯU ĐÃI`) located inside product info sections were closer to the main price element in the DOM tree than the main title, causing them to be extracted as product names on detail pages.
+5. **Intra-Site Comparisons**: The Comparison View grouped and compared different listings or price variants from the exact same website against each other, instead of strictly comparing different websites.
 
 ## Fixes Applied
 1. **Space Normalization in SKU Matching**: Added a safe replacement regex in `extractSku` to join alphanumeric gaps (e.g. `52 IH` -> `52IH`), bypassing Vietnamese words using trailing letter checks.
 2. **Enriched Combo Signature Detection**: Expanded `getPackSignature` to identify gift/addon signatures, ensuring that bundles are grouped under distinct keys and compared separately from the base product.
 3. **Robust Comparison Group Keys**: Normalized comparison SKU and Series keys in `groupAndCompareProducts` by stripping all spaces, hyphens, and underscores before grouping.
+4. **Garbage Keyword Filtering for Section Headers**: Added promotional keywords (e.g. `khuyến mãi`, `ưu đãi`) to `tuKhoaRac` lists to skip generic block titles.
+5. **Cross-Site Comparison Limit & De-duplication**: Updated `groupAndCompareProducts` to keep only the cheapest option per website domain and limit comparisons to groups present on 2 or more different websites.
 
 ## Remaining Issues
 - None.
+
 

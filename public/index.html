@@ -1241,38 +1241,72 @@
                 }
             });
             
+            function getDomain(url) {
+                if (!url) return '';
+                try {
+                    return new URL(url).hostname.replace('www.', '').toLowerCase();
+                } catch (e) {
+                    return url.toLowerCase().trim();
+                }
+            }
+
+            function filterCheapestPerDomain(itemsList) {
+                const domainMap = {};
+                itemsList.forEach(item => {
+                    const domain = getDomain(item.link);
+                    if (!domainMap[domain]) {
+                        domainMap[domain] = item;
+                    } else {
+                        const existingPrice = domainMap[domain].numericPrice;
+                        const currentPrice = item.numericPrice;
+                        if (currentPrice > 0 && (existingPrice === 0 || currentPrice < existingPrice)) {
+                            domainMap[domain] = item;
+                        }
+                    }
+                });
+                const filtered = Object.values(domainMap);
+                filtered.sort((a, b) => a.numericPrice - b.numericPrice);
+                return filtered;
+            }
+
             const comparisonResults = [];
             
             Object.keys(skuGroups).forEach(skuKey => {
-                const items = skuGroups[skuKey];
-                items.sort((a, b) => a.numericPrice - b.numericPrice);
-                const validPriceItems = items.filter(x => x.numericPrice > 0);
+                const rawItems = skuGroups[skuKey];
+                const items = filterCheapestPerDomain(rawItems);
                 
-                comparisonResults.push({
-                    type: 'sku',
-                    key: items[0].ma,
-                    name: items[0].tenSạch,
-                    series: items[0].series,
-                    items: items,
-                    minPriceItem: validPriceItems.length > 0 ? validPriceItems[0] : items[0],
-                    maxPriceItem: validPriceItems.length > 0 ? validPriceItems[validPriceItems.length - 1] : items[0]
-                });
+                // Only compare if there are at least 2 different websites
+                if (items.length >= 2) {
+                    const validPriceItems = items.filter(x => x.numericPrice > 0);
+                    comparisonResults.push({
+                        type: 'sku',
+                        key: items[0].ma,
+                        name: items[0].tenSạch,
+                        series: items[0].series,
+                        items: items,
+                        minPriceItem: validPriceItems.length > 0 ? validPriceItems[0] : items[0],
+                        maxPriceItem: validPriceItems.length > 0 ? validPriceItems[validPriceItems.length - 1] : items[0]
+                    });
+                }
             });
             
             fuzzyGroups.forEach((group, index) => {
-                const items = group.items;
-                items.sort((a, b) => a.numericPrice - b.numericPrice);
-                const validPriceItems = items.filter(x => x.numericPrice > 0);
+                const rawItems = group.items;
+                const items = filterCheapestPerDomain(rawItems);
                 
-                comparisonResults.push({
-                    type: 'fuzzy',
-                    key: `Tương đồng tên #${index + 1}`,
-                    name: items[0].tenSạch,
-                    series: '',
-                    items: items,
-                    minPriceItem: validPriceItems.length > 0 ? validPriceItems[0] : items[0],
-                    maxPriceItem: validPriceItems.length > 0 ? validPriceItems[validPriceItems.length - 1] : items[0]
-                });
+                // Only compare if there are at least 2 different websites
+                if (items.length >= 2) {
+                    const validPriceItems = items.filter(x => x.numericPrice > 0);
+                    comparisonResults.push({
+                        type: 'fuzzy',
+                        key: `Tương đồng tên #${index + 1}`,
+                        name: items[0].tenSạch,
+                        series: '',
+                        items: items,
+                        minPriceItem: validPriceItems.length > 0 ? validPriceItems[0] : items[0],
+                        maxPriceItem: validPriceItems.length > 0 ? validPriceItems[validPriceItems.length - 1] : items[0]
+                    });
+                }
             });
             
             return comparisonResults;
