@@ -1120,11 +1120,6 @@
 
                     // Nếu không cào thêm được sản phẩm mới nào ở trang này -> dừng cào sớm
                     if (newCount === 0) {
-                        writeToConsole(`Không tìm thấy sản phẩm mới nào ở trang ${p} (tất cả bị trùng lặp). Dừng cào sớm.`, 'warning');
-                        break;
-                    }
-
-                    if (p > 1 && newCount === 0) {
                         writeToConsole(`Không có thêm sản phẩm mới ở trang ${p} (trùng lặp hoàn toàn). Dừng cào sớm.`, 'warning');
                         break;
                     }

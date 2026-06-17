@@ -12,11 +12,13 @@
   - Implemented DOM tree-distance proximity matching (using custom `getCheerioDistance` and `getDOMDistance` helpers) in both Cheerio and Puppeteer paths to associate each price node with its mathematically closest title/link. This resolves cross-talk and duplication issues when crawing pages containing multiple product sections/grids.
   - Added `isLayoutContainer` helper to prevent parent traversal from going up into layout-level containers (like grids, rows, lists, body, main). This limits parent traversal to single-product cards, preventing runaway page-wide `querySelectorAll` searches and resolving the HTTP 502 function timeout.
   - Increased Cheerio fast-path threshold from 3 to 8. This avoids returning recommended/featured items prematurely on category pages that render main products dynamically.
+  - Merged remote `phucsang/main` changes containing general `<script>` tag selection logic for `productSaleSetup` extraction.
 - [netlify.toml](file:///d:/Work/cong-cu-cao-web-ver-2/netlify.toml):
   - Added `functions = "netlify/functions"` under `[build]` to ensure the Netlify builder and CLI locate and deploy the serverless functions folder, resolving 404 errors on `/api/*` endpoints.
 - [public/index.html](file:///d:/Work/cong-cu-cao-web-ver-2/public/index.html):
   - Merged new UI changes from remote branch. Added SKU (Mã sản phẩm) and Series parsing, display in UI table/grid, searching capabilities, and CSV/Shopify export mapping.
   - Changed the early-exit condition to break the sequential page loop if a page yields 0 new items (`newCount === 0`) instead of `products.length === 0`. This stops useless repeated crawing of identical pages.
+  - Cleaned up redundant early stop checks in frontend logic after merging remote `phucsang/main` changes.
 
 ## Deleted Files
 - None.
@@ -43,8 +45,10 @@
 - `git push origin main`: Pushed updates to origin remote.
 - `git commit -am "fix: raise Cheerio fast-path threshold and stop page crawing on zero new items"`: Committed threshold and page-exit fixes.
 - `git push origin main`: Pushed updates to origin remote.
-- `git commit -am "fix: add isLayoutContainer check to optimize parent traversal and prevent HTTP 502 timeouts"`: Committed performance fixes.
 - `git push origin main`: Pushed updates to origin remote.
+- `git fetch phucsang`: Fetched remote branch from phucsang remote.
+- `git merge phucsang/main`: Merged remote commits from phucsang/main into local main.
+- `git push phucsang main`: Pushed final codebase with fixes to phucsang's repository.
 
 ## Bugs Found
 1. **Fallback Path Bypass on Local Dev (Windows)**: `@sparticuz/chromium` was imported and initialized on local Windows machines because the module is installed. `chromium.executablePath()` returned a folder/path that exists, so `fs.promises.access` succeeded, but running `puppeteer.launch` failed because it's not a valid Windows executable. This bypassed the local Chrome/Edge fallback search.
