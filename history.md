@@ -8,6 +8,7 @@
   - Isolated `@sparticuz/chromium` to only load when in production Serverless (AWS Lambda) environments, skipping it in local development (`netlify dev`) to prevent executable spawning errors.
   - Added try-catch blocks to request interception functions to prevent requests from hanging.
   - Wrapped `page.evaluate` in a try-catch block to fall back to static HTML scraping via Cheerio if the browser's execution context is destroyed or page is navigating.
+  - Replaced the top-level CommonJS `require('puppeteer-core')` with an asynchronous dynamic `import('puppeteer-core')` inside the handler function to avoid `ERR_REQUIRE_ESM` when running on AWS Lambda.
 - [netlify.toml](file:///d:/Work/cong-cu-cao-web-ver-2/netlify.toml):
   - Added `functions = "netlify/functions"` under `[build]` to ensure the Netlify builder and CLI locate and deploy the serverless functions folder, resolving 404 errors on `/api/*` endpoints.
 
@@ -20,6 +21,7 @@
 - `curl.exe "http://localhost:8889/api/scrape?url=https://example.com"`: Verified fallback browser path (Puppeteer) and robustness fixes.
 - `git remote set-url origin https://github.com/tomyrese/crawldata.git`: Changed remote origin to user's repository.
 - `git push -u origin main`: Pushed codebase to user's repository.
+- `git commit -am "Fix require of ES Module puppeteer-core on Netlify" && git push origin main`: Pushed the dynamic import fix.
 
 ## Bugs Found
 1. **Fallback Path Bypass on Local Dev (Windows)**: `@sparticuz/chromium` was imported and initialized on local Windows machines because the module is installed. `chromium.executablePath()` returned a folder/path that exists, so `fs.promises.access` succeeded, but running `puppeteer.launch` failed because it's not a valid Windows executable. This bypassed the local Chrome/Edge fallback search.
@@ -27,6 +29,7 @@
 3. **Execution Context Destroyed Error**: If page navigation is delayed or times out, calling `page.evaluate` threw `Execution context was destroyed`, causing the function to crash instead of parsing the loaded HTML.
 4. **Node Version Engine Mismatch on Serverless**: `@sparticuz/chromium` v149.0.0 requires Node.js `>= 22.17.0` or `>= 24.0.0`. If Netlify environment uses default Node (e.g. 18 or 20), it would fail to compile or execute.
 5. **Missing Functions Directory Config (404 Error)**: The `functions` property was missing in the `[build]` block of `netlify.toml`. This caused Netlify CLI / builder to skip deploying the serverless functions directory, resulting in HTTP 404 when querying `/api/*`.
+6. **ERR_REQUIRE_ESM on AWS Lambda for puppeteer-core**: `puppeteer-core` version 25.1.0 is a pure ES Module. Calling `require('puppeteer-core')` at the top level of a CommonJS file (`scrape.js`) throws `ERR_REQUIRE_ESM` when executed in the production AWS Lambda environment, crashing the serverless endpoint and returning a 502 Bad Gateway.
 
 ## Fixes Applied
 1. Prevented `@sparticuz/chromium` from loading when not on AWS Lambda or when `NETLIFY_DEV` is true.
@@ -34,6 +37,7 @@
 3. Wrapped `page.evaluate` in a try-catch that falls back to grabbing static `page.content()` and parsing it via Cheerio.
 4. Added `.node-version` file to lock Node.js version on Netlify to `22.17.0`.
 5. Explicitly defined `functions = "netlify/functions"` under `[build]` in `netlify.toml`.
+6. Loaded `puppeteer-core` dynamically inside the handler via `await import('puppeteer-core')` to support ES module loading in a CommonJS function.
 
 ## Remaining Issues
 - None.
