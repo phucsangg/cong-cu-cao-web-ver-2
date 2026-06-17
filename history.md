@@ -11,6 +11,8 @@
   - Replaced the top-level CommonJS `require('puppeteer-core')` with an asynchronous dynamic `import('puppeteer-core')` inside the handler function to avoid `ERR_REQUIRE_ESM` when running on AWS Lambda.
 - [netlify.toml](file:///d:/Work/cong-cu-cao-web-ver-2/netlify.toml):
   - Added `functions = "netlify/functions"` under `[build]` to ensure the Netlify builder and CLI locate and deploy the serverless functions folder, resolving 404 errors on `/api/*` endpoints.
+- [public/index.html](file:///d:/Work/cong-cu-cao-web-ver-2/public/index.html):
+  - Merged new UI changes from remote branch. Added SKU (Mã sản phẩm) and Series parsing, display in UI table/grid, searching capabilities, and CSV/Shopify export mapping.
 
 ## Deleted Files
 - None.
@@ -24,6 +26,11 @@
 - `git commit -am "Fix require of ES Module puppeteer-core on Netlify" && git push origin main`: Pushed the dynamic import fix.
 - `git remote add phucsang https://github.com/phucsangg/cong-cu-cao-web-ver-2.git`: Added phucsang repository as remote.
 - `git push phucsang main`: Pushed final codebase with fixes to phucsang's repository.
+- `git status`: Checked working directory status.
+- `git remote -v`: Verified configure git remotes.
+- `git fetch phucsang`: Fetched updates from phucsang remote.
+- `git log HEAD..phucsang/main --oneline`: Evaluated incoming commits from the phucsang remote.
+- `git merge phucsang/main`: Fast-forwarded local branch to the latest remote state.
 
 ## Bugs Found
 1. **Fallback Path Bypass on Local Dev (Windows)**: `@sparticuz/chromium` was imported and initialized on local Windows machines because the module is installed. `chromium.executablePath()` returned a folder/path that exists, so `fs.promises.access` succeeded, but running `puppeteer.launch` failed because it's not a valid Windows executable. This bypassed the local Chrome/Edge fallback search.
