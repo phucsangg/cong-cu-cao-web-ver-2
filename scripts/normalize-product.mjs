@@ -60,9 +60,16 @@ export function cleanNoiseWords(name) {
 export function extractSku(fullName) {
     let cleanText = fullName;
 
+    const letterRegexStr = 'a-zA-Zàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ';
+
     // Space normalization for model numbers (e.g. 52 I -> 52I, 52 IH -> 52IH)
     // ONLY if the letters are a standalone word to prevent merging prefixes of other words
-    cleanText = cleanText.replace(/\b(\d+)\s+([A-Z]{1,4})\b/gi, '$1$2');
+    const unitNormalizeReg = new RegExp('\\b(\\d+)\\s+([A-Z]{1,4})(?![' + letterRegexStr + '])', 'gi');
+    cleanText = cleanText.replace(unitNormalizeReg, '$1$2');
+
+    // Normalize space around hyphens in brand-model codes (e.g. KF - IH202IC -> KF-IH202IC)
+    const brandNormalizeReg = new RegExp('(?<![-A-Z0-9_])([A-Z]{2,4})\\s*-\\s*([A-Z0-9]+)(?![' + letterRegexStr + '])', 'gi');
+    cleanText = cleanText.replace(brandNormalizeReg, '$1-$2');
 
     cleanText = cleanText.replace(/\b\d+(?:[.,]\d{3})*\s*(?:đ|₫|VND|vnđ|vnd)/gi, '');
     cleanText = cleanText.replace(/[-+]\s*\d+\s*%/g, '');
