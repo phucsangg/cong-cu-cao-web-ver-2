@@ -954,15 +954,15 @@
         }
 
         function extractSize(text) {
-            const m = cleanText(text).match(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)\b/i);
+            const m = cleanText(text).match(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)(?![a-zA-ZÀ-ỹ])/i);
             return m ? m[0].replace(/\s+/g, '').toUpperCase() : null;
         }
 
         function stripNonCodeInfo(text) {
             return cleanText(text)
                 .replace(/\b(?:series|serie|seri)\s*\d+\b/gi, ' ')
-                .replace(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)\b/gi, ' ')
-                .replace(/\b\d+\s*(?:bộ|bo|món|mon|lớp|lop|năm|nam)\b/gi, ' ')
+                .replace(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)(?![a-zA-ZÀ-ỹ])/gi, ' ')
+                .replace(/\b\d+\s*(?:bộ|bo|món|mon|lớp|lop|năm|nam)(?![a-zA-ZÀ-ỹ])/gi, ' ')
                 .replace(/\bAISI\s*304\b/gi, ' ')
                 .replace(/\bPVD\s*\d+\b/gi, ' ')
                 .replace(/\b\d{2,4}\s*[x×]\s*\d{2,4}\b/gi, ' ')
@@ -1056,8 +1056,8 @@
             }
             
             clean = clean.replace(/\b(?:series|serie|seri)\s*\d+\b/gi, '');
-            clean = clean.replace(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)\b/gi, '');
-            clean = clean.replace(/\b(?:AISI\s*304|PVD\s*\d+|lớp)\b/gi, '');
+            clean = clean.replace(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)(?![a-zA-ZÀ-ỹ])/gi, '');
+            clean = clean.replace(/\b(?:AISI\s*304|PVD\s*\d+|lớp)(?![a-zA-ZÀ-ỹ])/gi, '');
 
             clean = clean.replace(/[\[\]|,\-+()]/g, ' ');
             clean = clean.replace(/\s+/g, ' ').trim();
