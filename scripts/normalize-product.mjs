@@ -98,6 +98,7 @@ export function stripNonCodeInfo(text) {
         .replace(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)(?![a-zA-ZÀ-ỹ])/gi, ' ')
         .replace(/\b\d+\s*(?:bộ|bo|món|mon|lớp|lop|năm|nam)(?![a-zA-ZÀ-ỹ])/gi, ' ')
         .replace(/\bAISI\s*304\b/gi, ' ')
+        .replace(/\bSUS\s*304\b/gi, ' ')
         .replace(/\bPVD\s*\d+\b/gi, ' ')
         .replace(/\b\d{2,4}\s*[x×]\s*\d{2,4}\b/gi, ' ')
         .replace(/\s+/g, ' ')
@@ -118,17 +119,22 @@ export function scoreCode(code, fullText) {
         score += 2;
     }
 
+    // Bonus points for Konox specific keywords
+    if (/(VIGO|STELO|NERON|TARI|MEKONG|DIAMOND)/i.test(c)) {
+        score += 5;
+    }
+
     // Trừ điểm các thứ dễ là thông số
     if (/^\d+$/.test(c)) score -= 10;
     if (/^\d+(CM|MM|L|W|KG|G)$/i.test(c)) score -= 10;
-    if (/^(PVD|AISI|SERIES|SERI|SERIE)/i.test(c)) score -= 10;
+    if (/^(PVD|AISI|SUS|BAT|BO|TRANG|SAN|GIA|KHUYEN|BAO|NHAP|MOI|NEW|SERIES|SERI|SERIE)/i.test(c)) score -= 10;
 
     return score;
 }
 
 export function extractModelInfo(name = '', link = '') {
     const slug = getSlug(link);
-    const rawText = `${name} ${slug.replace(/-/g, ' ')}`;
+    const rawText = `${name} ${slug} ${slug.replace(/-/g, ' ')}`;
     const normalized = cleanText(rawText).toUpperCase();
 
     const series = extractSeries(rawText);
@@ -141,16 +147,17 @@ export function extractModelInfo(name = '', link = '') {
     if (kaff) candidates.push(`KF-${kaff[1].toUpperCase()}`);
 
     // Rule cho Konox chậu/vòi dạng Vigo 860, Stelo 780U, Neron 600T
-    const konox = normalized.match(/\b(VIGO|STELO|NERON|TARI(?: SMART)?|MEKONG|DIAMOND)\s+(\d{3,4}[A-Z]?)\b/i);
-    if (konox) candidates.push(`${konox[1]} ${konox[2]}`.toUpperCase());
+    const konox = normalized.match(/\b(VIGO|STELO|NERON|TARI(?:[-_\s]+SMART)?|MEKONG|DIAMOND)[-_\s]+(\d{3,4}[A-Z]{0,2})\b/i);
+    if (konox) candidates.push(`${konox[1]} ${konox[2]}`.replace(/[-_]/g, ' ').toUpperCase());
 
     const textForCode = stripNonCodeInfo(rawText).toUpperCase();
 
     const codePatterns = [
         /\b\d{3}[._-]\d{2}[._-]\d{3}\b/gi,
-        /\b[A-Z]{1,5}[-_]\d[A-Z0-9]{2,}\b/gi,
-        /\b[A-Z]{2,}\d[A-Z0-9]{2,}\b/gi,
-        /\b[A-Z]\d[A-Z0-9]{2,}\b/gi
+        /\b[A-Z]{1,5}[-_]\d[A-Z0-9]{1,}\b/gi,
+        /\b[A-Z]{2,}\d[A-Z0-9]{1,}\b/gi,
+        /\b[A-Z]\d[A-Z0-9]{1,}\b/gi,
+        /\b[A-Z0-9]{2,5}[-_ ]\d{3}[-_ ][A-Z]{3,4}\b/gi
     ];
 
     for (const re of codePatterns) {
@@ -160,7 +167,13 @@ export function extractModelInfo(name = '', link = '') {
 
     candidates = [...new Set(
         candidates
-            .map(x => x.replace(/[._]/g, '.').replace(/\s+/g, ' ').trim().toUpperCase())
+            .map(x => {
+                let formatted = x.replace(/[._]/g, '.').replace(/\s+/g, ' ').trim().toUpperCase();
+                if (/(VIGO|STELO|NERON|TARI|MEKONG|DIAMOND)/i.test(formatted)) {
+                    formatted = formatted.replace(/-/g, ' ');
+                }
+                return formatted;
+            })
             .filter(Boolean)
     )];
 
@@ -191,7 +204,7 @@ export function getCleanName(fullName, maSanPham, series, kichThuoc) {
     
     clean = clean.replace(/\b(?:series|serie|seri)\s*\d+\b/gi, '');
     clean = clean.replace(/\b\d+(?:[.,]\d+)?\s*(?:cm|mm|l|lit|lít|w|kw|kg|g)(?![a-zA-ZÀ-ỹ])/gi, '');
-    clean = clean.replace(/\b(?:AISI\s*304|PVD\s*\d+|lớp)(?![a-zA-ZÀ-ỹ])/gi, '');
+    clean = clean.replace(/\b(?:AISI\s*304|SUS\s*304|PVD\s*\d+|lớp)(?![a-zA-ZÀ-ỹ])/gi, '');
 
     clean = clean.replace(/[\[\]|,\-+()]/g, ' ');
     clean = clean.replace(/\s+/g, ' ').trim();
