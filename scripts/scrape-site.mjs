@@ -18,6 +18,8 @@ export async function scrapeCategory(url, options = {}, logCallback = console.lo
     let allProducts = [];
     let seenLinks = new Set();
     let pageNum = 1;
+    let consecutiveEmptyCount = 0;
+    const maxConsecutiveEmpty = options.maxConsecutiveEmpty || 3;
 
     logCallback(`Bắt đầu cào danh mục: ${url}`, 'info');
 
@@ -43,26 +45,38 @@ export async function scrapeCategory(url, options = {}, logCallback = console.lo
             }, logCallback);
 
             const products = result.products || [];
-            if (products.length === 0) {
-                logCallback(`Không tìm thấy sản phẩm nào ở trang ${pageNum}. Dừng cào sớm.`, 'warning');
-                break;
-            }
-
             let newCount = 0;
-            products.forEach(p => {
-                const key = p.link || p.ten;
-                if (key && !seenLinks.has(key)) {
-                    seenLinks.add(key);
-                    allProducts.push(p);
-                    newCount++;
+
+            if (products.length === 0) {
+                consecutiveEmptyCount++;
+                logCallback(`Trang ${pageNum}: Không tìm thấy sản phẩm nào. (Trống liên tiếp: ${consecutiveEmptyCount}/${maxConsecutiveEmpty})`, 'warning');
+                if (consecutiveEmptyCount >= maxConsecutiveEmpty) {
+                    logCallback(`Đã vượt quá giới hạn trang trống liên tiếp (${maxConsecutiveEmpty}). Dừng cào sớm.`, 'warning');
+                    break;
                 }
-            });
+            } else {
+                products.forEach(p => {
+                    const key = p.link || p.ten;
+                    if (key && !seenLinks.has(key)) {
+                        seenLinks.add(key);
+                        allProducts.push(p);
+                        newCount++;
+                    }
+                });
 
-            logCallback(`Trang ${pageNum}: Tìm thấy ${products.length} sản phẩm, ${newCount} sản phẩm mới.`, 'success');
+                logCallback(`Trang ${pageNum}: Tìm thấy ${products.length} sản phẩm, ${newCount} sản phẩm mới.`, 'success');
 
-            if (newCount === 0) {
-                logCallback(`Toàn bộ sản phẩm ở trang ${pageNum} đều bị trùng lặp. Dừng cào sớm.`, 'warning');
-                break;
+                if (newCount === 0) {
+                    consecutiveEmptyCount++;
+                    logCallback(`Trang ${pageNum}: Toàn bộ sản phẩm đều bị trùng lặp. (Trùng liên tiếp: ${consecutiveEmptyCount}/${maxConsecutiveEmpty})`, 'warning');
+                    if (consecutiveEmptyCount >= maxConsecutiveEmpty) {
+                        logCallback(`Đã vượt quá giới hạn trang trùng liên tiếp (${maxConsecutiveEmpty}). Dừng cào sớm.`, 'warning');
+                        break;
+                    }
+                } else {
+                    // Reset consecutive count if new products are successfully found
+                    consecutiveEmptyCount = 0;
+                }
             }
 
             // Delay between page requests
