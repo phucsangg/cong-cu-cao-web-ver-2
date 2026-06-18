@@ -58,14 +58,11 @@ export function cleanNoiseWords(name) {
  * Extract model (SKU) and Series from name based on test-fetch.mjs implementation
  */
 export function extractSku(fullName) {
-    let cleanText = fullName.replace(/\b(\d+)\s+([A-Z]{1,4})/gi, (match, g1, g2, offset, str) => {
-        const nextChar = str[offset + match.length];
-        const letterRegex = /[a-zA-Z]/i;
-        if (nextChar && letterRegex.test(nextChar)) {
-            return match;
-        }
-        return g1 + g2;
-    });
+    let cleanText = fullName;
+
+    // Space normalization for model numbers (e.g. 52 I -> 52I, 52 IH -> 52IH)
+    // ONLY if the letters are a standalone word to prevent merging prefixes of other words
+    cleanText = cleanText.replace(/\b(\d+)\s+([A-Z]{1,4})\b/gi, '$1$2');
 
     cleanText = cleanText.replace(/\b\d+(?:[.,]\d{3})*\s*(?:đ|₫|VND|vnđ|vnd)/gi, '');
     cleanText = cleanText.replace(/[-+]\s*\d+\s*%/g, '');
@@ -78,12 +75,16 @@ export function extractSku(fullName) {
         codes.push(match[0]);
     }
     
-    const modelReg = /\b(?:[A-Z]{1,4}[- _]?)?[A-Z_]*\d+[A-Z0-9_]*(?:[-/_][A-Z0-9_]+)*(?:[- ]?(?:PLUS|PRO|NOTE|KPLUS|EG|VN|EVN|IN|II|IG|Z|S|G|[A-Z]{2,4}))?\b/gi;
+    // Alphanumeric code matching: strictly no raw spaces inside model code
+    // Prefix cannot contain space to prevent greedy shadowing of letters from preceding words
+    const modelReg = /\b(?:[A-Z]{1,4}[-_]?)?[A-Z_]*\d+[A-Z0-9_]*(?:[-/][A-Z0-9_]+)*(?:[- ]?(?:PLUS|PRO|NOTE|KPLUS|EG|VN|EVN|IN|II|IG|Z|S|G))?\b/gi;
     while ((match = modelReg.exec(cleanText)) !== null) {
         const matched = match[0];
         const prevChar = match.index > 0 ? cleanText[match.index - 1] : '';
         const nextChar = cleanText[match.index + matched.length];
-        const letterRegex = /[a-zA-Z]/i;
+        
+        // Accurate unicode check for letter boundaries to avoid accent bugs
+        const letterRegex = /[a-zA-Zàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
         const isPrevLetter = prevChar && letterRegex.test(prevChar);
         const isNextLetter = nextChar && letterRegex.test(nextChar);
         
@@ -145,7 +146,9 @@ export function extractSku(fullName) {
         for (const part of parts) {
             if (excludedWords.includes(part) && !/\d/.test(part)) return false;
         }
-        const isUnit = /^\d+(?:W|V|HZ|L|KG|PHUT|THANG|TRANG|MS|S|H|N|VN|TB|GB|MB|VÙNG|VUNG|VÒNG|VONG)$/i.test(clean);
+        
+        // Exclude units (added CM and MM)
+        const isUnit = /^\d+(?:W|V|HZ|L|KG|PHUT|THANG|TRANG|MS|S|H|N|VN|TB|GB|MB|VÙNG|VUNG|VÒNG|VONG|CM|MM)$/i.test(clean);
         if (isUnit) return false;
         
         const isDimension = /^\d+\s*[xX]\s*\d+(?:\s*[xX]\s*\d+)*$/i.test(clean);
@@ -167,9 +170,19 @@ export function extractSku(fullName) {
     cleanName = cleanName.replace(/\s*-\s*$/, '').replace(/^\s*-\s*/, '').replace(/\s+/g, ' ').trim();
     cleanName = cleanName.replace(/\/+\s*$/, '').replace(/^\s*\/+/, '').replace(/\s+/g, ' ').trim();
     
+    // Extract Bosch/general series from title
+    let seriesFromTitle = null;
+    const seriesTitleRegex = /(?:SERIES|SERIE|SERI)\s*(\d+)/i;
+    const matchSeriesTitle = fullName.match(seriesTitleRegex);
+    if (matchSeriesTitle) {
+        seriesFromTitle = matchSeriesTitle[0].trim();
+    }
+
     let baseSkus = [];
     let seriesSuffixes = [];
-    const suffixRegex = /\s*(EG\/KPLUS|EG|KPLUS|PLUS|Iplus|EVN|VN|IN|PRO|NOTE|II|IG|Z|S|G|Plus|Pro|Note|Kplus|[A-Z]{2,4})$/i;
+    
+    // Clean country code suffixes from split list so e.g. WQG24200SG remains intact as SKU
+    const suffixRegex = /\s*(EG\/KPLUS|EG|KPLUS|PLUS|Iplus|PRO|NOTE|Kplus)$/i;
     uniqueCodes.forEach(code => {
         const matchSuffix = code.match(suffixRegex);
         if (matchSuffix) {
@@ -183,9 +196,15 @@ export function extractSku(fullName) {
         }
     });
 
+    let finalSeries = seriesFromTitle || '';
+    if (seriesSuffixes.length > 0) {
+        const joinedSuffixes = [...new Set(seriesSuffixes)].join(' / ');
+        finalSeries = finalSeries ? `${finalSeries} (${joinedSuffixes})` : joinedSuffixes;
+    }
+
     return {
         sku: baseSkus.join(' / '),
-        series: [...new Set(seriesSuffixes)].join(' / '),
+        series: finalSeries || null,
         cleanName: cleanName
     };
 }

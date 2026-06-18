@@ -915,15 +915,12 @@
         const fallbackImgSrc = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzk0YTNCOCI+PHBhdGggZD0iTTIxIDE5VjVjMC0xLjEtLjktMi0yLTJINWMtMS4xIDAtMiAuOS0yIDJ2MTRjMCAxLjEuOSAyIDIgMmgxNGMxLjEgMCAyLS45IDItMnpNOC41IDEzLjVsMi41IDMuMDFMMTQuNSAxMmw0LjUgNkg1bDMuNS00LjV6Ii8+PC9zdmc+';
 
         function extractSku(fullName) {
-            // Space normalization for model numbers (e.g. 52 I -> 52I, 52 IH -> 52IH, 659 MCB -> 659MCB)
-            let cleanText = fullName.replace(/\b(\d+)\s+([A-Z]{1,4})/gi, (match, g1, g2, offset, str) => {
-                const nextChar = str[offset + match.length];
-                const letterRegex = /[a-zA-Zàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
-                if (nextChar && letterRegex.test(nextChar)) {
-                    return match;
-                }
-                return g1 + g2;
-            });
+            let cleanText = fullName;
+
+            // Space normalization for model numbers (e.g. 52 I -> 52I, 52 IH -> 52IH)
+            // ONLY if the letters are a standalone word to prevent merging prefixes of other words
+            cleanText = cleanText.replace(/\b(\d+)\s+([A-Z]{1,4})\b/gi, '$1$2');
+            
             // Clean price patterns like 9,480,000đ, 18.100.000 đ, etc.
             cleanText = cleanText.replace(/\b\d+(?:[.,]\d{3})*\s*(?:đ|₫|VND|vnđ|vnd)/gi, '');
             // Clean discount percentage like -48% or 48%
@@ -941,8 +938,8 @@
             }
             
             // Pattern 2: Comprehensive alphanumeric model code matching (case-insensitive)
-            // Allowing 1-4 letter prefixes like K- in K-10540
-            const modelReg = /\b(?:[A-Z]{1,4}[- _]?)?[A-Z_]*\d+[A-Z0-9_]*(?:[-/_][A-Z0-9_]+)*(?:[- ]?(?:PLUS|PRO|NOTE|KPLUS|EG|VN|EVN|IN|II|IG|Z|S|G|[A-Z]{2,4}))?\b/gi;
+            // Prefix cannot contain space to prevent greedy shadowing of letters from preceding words
+            const modelReg = /\b(?:[A-Z]{1,4}[-_]?)?[A-Z_]*\d+[A-Z0-9_]*(?:[-/][A-Z0-9_]+)*(?:[- ]?(?:PLUS|PRO|NOTE|KPLUS|EG|VN|EVN|IN|II|IG|Z|S|G))?\b/gi;
             while ((match = modelReg.exec(cleanText)) !== null) {
                 const matched = match[0];
                 const prevChar = match.index > 0 ? cleanText[match.index - 1] : '';
@@ -1032,8 +1029,8 @@
                     }
                 }
                 
-                // Exclude units
-                const isUnit = /^\d+(?:W|V|HZ|L|KG|PHUT|THANG|TRANG|MS|S|H|N|VN|TB|GB|MB|VÙNG|VUNG|VÒNG|VONG)$/i.test(clean);
+                // Exclude units (added CM and MM)
+                const isUnit = /^\d+(?:W|V|HZ|L|KG|PHUT|THANG|TRANG|MS|S|H|N|VN|TB|GB|MB|VÙNG|VUNG|VÒNG|VONG|CM|MM)$/i.test(clean);
                 if (isUnit) return false;
                 
                 // Exclude dimensions like 600x400, 700x400x150
@@ -1058,11 +1055,20 @@
             cleanName = cleanName.replace(/\s*-\s*$/, '').replace(/^\s*-\s*/, '').replace(/\s+/g, ' ').trim();
             cleanName = cleanName.replace(/\/+\s*$/, '').replace(/^\s*\/+/, '').replace(/\s+/g, ' ').trim();
             
+            // Extract Bosch/general series from title
+            let seriesFromTitle = null;
+            const seriesTitleRegex = /(?:SERIES|SERIE|SERI)\s*(\d+)/i;
+            const matchSeriesTitle = fullName.match(seriesTitleRegex);
+            if (matchSeriesTitle) {
+                seriesFromTitle = matchSeriesTitle[0].trim();
+            }
+
             // Split baseSku and series for each code
             let baseSkus = [];
             let seriesSuffixes = [];
             
-            const suffixRegex = /\s*(EG\/KPLUS|EG|KPLUS|PLUS|Iplus|EVN|VN|IN|PRO|NOTE|II|IG|Z|S|G|Plus|Pro|Note|Kplus|[A-Z]{2,4})$/i;
+            // Clean country code suffixes from split list so e.g. WQG24200SG remains intact as SKU
+            const suffixRegex = /\s*(EG\/KPLUS|EG|KPLUS|PLUS|Iplus|PRO|NOTE|Kplus)$/i;
             uniqueCodes.forEach(code => {
                 const matchSuffix = code.match(suffixRegex);
                 if (matchSuffix) {
@@ -1076,9 +1082,15 @@
                 }
             });
 
+            let finalSeries = seriesFromTitle || '';
+            if (seriesSuffixes.length > 0) {
+                const joinedSuffixes = [...new Set(seriesSuffixes)].join(' / ');
+                finalSeries = finalSeries ? `${finalSeries} (${joinedSuffixes})` : joinedSuffixes;
+            }
+
             return {
                 sku: baseSkus.join(' / '),
-                series: [...new Set(seriesSuffixes)].join(' / '),
+                series: finalSeries || null,
                 cleanName: cleanName
             };
         }
